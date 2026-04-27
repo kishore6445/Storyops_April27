@@ -21,11 +21,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Invalid session" }, { status: 401 })
     }
 
+    const isAdmin = session.role === "admin" || session.role === "manager"
     const supabase = getSupabaseAdminClient()
     const resolvedParams = await params
     const taskId = resolvedParams.taskId
 
-    const { data: subtasks, error } = await supabase
+    const subtaskQuery = supabase
       .from("task_subtasks")
       .select(`
         id,
@@ -42,7 +43,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         updated_at
       `)
       .eq("task_id", taskId)
-      .order("created_at", { ascending: true })
+
+    if (!isAdmin) {
+      subtaskQuery.eq("assignee_id", session.userId)
+    }
+
+    const { data: subtasks, error } = await subtaskQuery.order("created_at", { ascending: true })
 
     if (error) {
       console.error("[v0] Error fetching subtasks:", error)

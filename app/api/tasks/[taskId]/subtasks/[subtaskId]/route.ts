@@ -109,12 +109,23 @@ export async function DELETE(
     const supabase = getSupabaseAdminClient()
     const { taskId, subtaskId } = await params
 
-    // Get subtask title for activity log
-    const { data: subtask } = await supabase
+    const { data: subtask, error: fetchError } = await supabase
       .from("task_subtasks")
-      .select("title")
+      .select("title, assignee_id")
       .eq("id", subtaskId)
       .single()
+
+    if (fetchError || !subtask) {
+      return NextResponse.json({ error: "Subtask not found" }, { status: 404 })
+    }
+
+    const isAdmin = session.role === "admin" || session.role === "manager"
+    if (!isAdmin && subtask.assignee_id !== session.userId) {
+      return NextResponse.json(
+        { error: "Forbidden: only the assigned user or admin can delete this subtask" },
+        { status: 403 }
+      )
+    }
 
     const { error } = await supabase
       .from("task_subtasks")
