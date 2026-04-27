@@ -24,21 +24,6 @@ export function TaskWorkspaceOverview({ task, onStatusBlocked }: TaskWorkspaceOv
   const [checklist, setChecklist] = useState<Array<{ id: string; text: string; completed: boolean }>>([])
   const [newChecklistItem, setNewChecklistItem] = useState("")
 
-  const getCurrentStageKey = () => {
-    if (task.status === "in_progress") return "in_progress"
-    if (task.status === "in_review") return "in_review"
-    if (task.status === "done") return "done"
-    return "created"
-  }
-
-  const currentStageKey = getCurrentStageKey()
-  const timelineStages = [
-    { key: "created", label: "Created" },
-    { key: "in_progress", label: "In Progress" },
-    { key: "in_review", label: "In Review" },
-    { key: "done", label: "Done" }
-  ]
-
   const addChecklistItem = () => {
     if (!newChecklistItem.trim()) return
     const newItem = {
@@ -71,46 +56,6 @@ export function TaskWorkspaceOverview({ task, onStatusBlocked }: TaskWorkspaceOv
       </div>
 
       {/* Task Timeline */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Task Lifecycle</h3>
-        <div className="flex items-center justify-between gap-2">
-          {timelineStages.map((stage, index) => {
-            const isActive = stage.key === currentStageKey
-            const completedIndex = timelineStages.findIndex(s => s.key === currentStageKey)
-            const isCompleted = index < completedIndex
-
-            return (
-              <div key={stage.key} className="flex items-center flex-1">
-                <div className="flex flex-col items-center flex-1">
-                  <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-all",
-                    isActive ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-400"
-                  )}>
-                    {isActive ? (
-                      <CheckCircle2 className="w-5 h-5" />
-                    ) : (
-                      <Circle className="w-5 h-5" />
-                    )}
-                  </div>
-                  <p className={cn(
-                    "text-xs font-medium text-center whitespace-nowrap",
-                    isActive ? "text-green-700" : "text-gray-700"
-                  )}>
-                    {stage.label}
-                  </p>
-                </div>
-                {index < timelineStages.length - 1 && (
-                  <div className={cn(
-                    "h-1 mb-8 flex-1 mx-1 transition-all",
-                    isCompleted ? "bg-green-300" : "bg-gray-200"
-                  )} />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
       {/* Description */}
       <div className="pt-4 border-t border-gray-200">
         <h3 className="text-sm font-semibold text-gray-900 mb-3">Description</h3>

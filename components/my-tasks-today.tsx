@@ -534,6 +534,46 @@ console.log("formData entries", Array.from(fileData.entries()))
     }
   }
 
+  const getNextSubtaskStatus = (currentStatus: string | undefined) => {
+    if (!currentStatus) return "pending"
+    const statusCycle: Record<string, string> = {
+      pending: "in_progress",
+      in_progress: "done",
+      done: "done",
+      created: "pending",
+      in_review: "done",
+    }
+    return statusCycle[currentStatus] || "pending"
+  }
+
+  const handleAssignedSubtaskClick = async (subtask: any) => {
+    const token = localStorage.getItem("sessionToken")
+    const nextStatus = getNextSubtaskStatus(subtask.status)
+    if (nextStatus === subtask.status) return
+
+    try {
+      const response = await fetch(`/api/tasks/${subtask.task_id}/subtasks/${subtask.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error("[v0] Error updating subtask status:", errorData.error || response.statusText)
+        return
+      }
+
+      // Refresh assigned subtasks and related task data
+      mutate()
+    } catch (error) {
+      console.error("[v0] Error updating subtask status:", error)
+    }
+  }
+
 
   if (isLoading) {
     return (
@@ -580,7 +620,13 @@ console.log("formData entries", Array.from(fileData.entries()))
               </div>
               <div className="space-y-3">
                 {displayedAssignedSubtasks.map((subtask) => (
-                  <div key={subtask.id} className="flex flex-col gap-2 rounded-2xl border border-[#E5E5E7] bg-[#F8FAFC] p-4">
+                  <div
+                    key={subtask.id}
+                    role="button"
+                    onClick={() => handleAssignedSubtaskClick(subtask)}
+                    className="flex flex-col gap-2 rounded-2xl border border-[#E5E5E7] bg-[#F8FAFC] p-4 cursor-pointer hover:bg-slate-100 transition-colors"
+                    title="Click to advance subtask lifecycle: Created → In Progress → In Review → Done"
+                  >
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-slate-900 truncate">{subtask.title}</p>
@@ -594,7 +640,7 @@ console.log("formData entries", Array.from(fileData.entries()))
                     </div>
                     <div className="flex items-center justify-between gap-4 text-xs text-slate-500">
                       <span>{subtask.due_date ? new Date(subtask.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "No due date"}</span>
-                      <span>Subtask ID: {subtask.id}</span>
+                      <span>Subtask ID: {subtask.reference_id || subtask.id}</span>
                     </div>
                   </div>
                 ))}

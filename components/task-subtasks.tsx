@@ -14,6 +14,7 @@ interface Subtask {
   due_date?: string
   completed_at?: string
   created_at: string
+  reference_id?: string
 }
 
 interface SubtasksProps {
@@ -34,8 +35,10 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
   const [teamMembers, setTeamMembers] = useState<Array<{ id: string; full_name: string; email: string }>>([])
 
   const normalizeSubtaskStatus = (status: string): Subtask["status"] => {
-    const normalized = status === "pending" ? "created" : status
-    return ["created", "in_progress", "in_review", "done"].includes(normalized) ? normalized as Subtask["status"] : "created"
+    const normalized = status === "created" ? "pending" : status
+    return ["pending", "in_progress", "done", "created", "in_review"].includes(normalized)
+      ? (normalized === "created" ? "pending" : normalized === "in_review" ? "done" : normalized) as Subtask["status"]
+      : "pending"
   }
 
   // Fetch subtasks and team members
@@ -123,8 +126,9 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
         const newSubtask = {
           ...rawSubtask,
           assignee,
-          status: normalizeSubtaskStatus(rawSubtask.status || "created"),
+          status: normalizeSubtaskStatus(rawSubtask.status || "pending"),
           due_date: rawSubtask.due_date || selectedDueDate || undefined,
+          reference_id: rawSubtask.reference_id,
         }
 
         const updatedSubtasks = [...subtasks, newSubtask]
@@ -134,7 +138,7 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
         setSelectedDueDate("")
         setShowAddForm(false)
         
-        // New subtask is always created, so status is blocked until done
+        // New subtask is always pending, so status is blocked until done
         onStatusBlocked?.(true)
       }
     } catch (error) {
@@ -145,15 +149,15 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
   }
 
   const handleToggleStatus = async (subtaskId: string, currentStatus: string) => {
-    // Cycle through states: created → in_progress → in_review → done
+    // Cycle through states: pending → in_progress → done
     const statusCycle = {
-      "created": "in_progress",
-      "in_progress": "in_review",
-      "in_review": "done",
-      "done": "done",
-      "pending": "in_progress"
+      pending: "in_progress",
+      in_progress: "done",
+      done: "done",
+      created: "pending",
+      in_review: "done",
     }
-    const newStatus = statusCycle[currentStatus as keyof typeof statusCycle] || "created"
+    const newStatus = statusCycle[currentStatus as keyof typeof statusCycle] || "pending"
 
     try {
       const token = localStorage.getItem("sessionToken")
@@ -361,7 +365,7 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
                       "group"
                     )}
                     style={{ borderLeftColor: stripeColor.split("-")[1].includes("500") ? stripeColor : undefined }}
-                    title="Click to advance subtask lifecycle: Created → In Progress → In Review → Done"
+                    title="Click to advance subtask lifecycle: Pending → In Progress → Done"
                   >
                     <div className="flex items-start justify-between gap-2">
                       {/* Checkbox + Title */}
@@ -378,7 +382,7 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
                               subtask.status === "in_progress" ? "#3b82f6" :
                               "transparent"
                           }}
-                          title="Click to advance subtask lifecycle: Created → In Progress → In Review → Done"
+                          title="Click to advance subtask lifecycle: Pending → In Progress → Done"
                         >
                           {subtask.status === "done" && <Check className="w-3 h-3 text-white" />}
                           {subtask.status === "in_progress" && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
@@ -386,12 +390,15 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
 
                         {/* Title and Metadata */}
                         <div className="flex-1 min-w-0">
-                          <p className={cn(
-                            "text-sm font-medium leading-tight",
-                            subtask.status === "done" ? "text-gray-400 line-through" : "text-gray-900"
-                          )}>
-                            {subtask.title}
-                          </p>
+                          <div>
+                            <p className={cn(
+                              "text-sm font-medium leading-tight",
+                              subtask.status === "done" ? "text-gray-400 line-through" : "text-gray-900"
+                            )}>
+                              {subtask.title}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-1">Subtask ID: {subtask.reference_id || subtask.id}</p>
+                          </div>
                           <span className={cn(
                             "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em]",
                             subtask.status === "done" ? "bg-green-100 text-green-700" :

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS task_subtasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
+  reference_id TEXT,
   description TEXT,
   assignee_id UUID REFERENCES users(id) ON DELETE SET NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'done')),

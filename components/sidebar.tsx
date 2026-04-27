@@ -1,7 +1,7 @@
 "use client"
 
 // Cache bust v2
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -272,6 +272,12 @@ export function Sidebar({ currentPhase, onPhaseChange }: SidebarProps) {
   const { user } = useAuth()
   const router = useRouter()
   const { setSelectedClientId } = useClient()
+  const sidebarWidth = isCollapsed ? "5rem" : "16rem"
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    document.documentElement.style.setProperty("--sidebar-width", sidebarWidth)
+  }, [sidebarWidth])
   
   const userRole = user?.role || "user"
   const isClient = userRole === "client"

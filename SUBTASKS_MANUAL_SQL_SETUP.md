@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS task_subtasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
+  reference_id TEXT,
   description TEXT,
   assignee_id UUID REFERENCES users(id) ON DELETE SET NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'done')),
@@ -30,6 +31,15 @@ CREATE INDEX IF NOT EXISTS idx_subtasks_assignee_id ON task_subtasks(assignee_id
 CREATE INDEX IF NOT EXISTS idx_subtasks_status ON task_subtasks(status);
 CREATE INDEX IF NOT EXISTS idx_subtasks_created_by ON task_subtasks(created_by);
 CREATE INDEX IF NOT EXISTS idx_subtasks_task_status ON task_subtasks(task_id, status);
+```
+
+## Step 1a: Add the new `reference_id` column to existing tables
+
+If `task_subtasks` already exists, run this after Step 1:
+
+```sql
+ALTER TABLE task_subtasks
+  ADD COLUMN IF NOT EXISTS reference_id TEXT;
 ```
 
 ## Step 3: Create trigger function for updated_at

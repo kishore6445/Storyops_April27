@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/db"
 import { validateSession } from "@/lib/auth"
 
+const buildSubtaskReferenceId = (taskIdentifier: string, sequence: number) => {
+  const base = String(taskIdentifier || "TASK").trim()
+  return `${base}_Subtask${sequence}`
+}
+
 // GET - Fetch all subtasks for a task
 export async function GET(request: NextRequest, { params }: { params: Promise<{ taskId: string }> }) {
   try {
@@ -26,6 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         id,
         task_id,
         title,
+        reference_id,
         status,
         assignee_id,
         due_date,
@@ -43,7 +49,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json([])
     }
 
-    // Enrich with user data
+    const { data: task, error: taskError } = await supabase
+      .from("tasks")
+      .select("task_id, title")
+      .eq("id", taskId)
+      .maybeSingle()
+
+    const parentTaskIdentifier = task?.task_id || task?.title || "TASK"
+
+    // Enrich with user data and preserve stored reference IDs
     let enrichedSubtasks = subtasks || []
     if (enrichedSubtasks.length > 0) {
       const userIds = [...new Set(enrichedSubtasks.map(s => s.assignee_id).filter(Boolean))]
@@ -53,9 +67,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           .select("id, full_name, email")
           .in("id", userIds)
 
-        enrichedSubtasks = enrichedSubtasks.map(subtask => ({
+        enrichedSubtasks = enrichedSubtasks.map((subtask, index) => ({
           ...subtask,
-          assignee: users?.find(u => u.id === subtask.assignee_id) || null
+          assignee: users?.find(u => u.id === subtask.assignee_id) || null,
+          reference_id: subtask.reference_id || buildSubtaskReferenceId(parentTaskIdentifier, index + 1),
+        }))
+      } else {
+        enrichedSubtasks = enrichedSubtasks.map((subtask, index) => ({
+          ...subtask,
+          reference_id: subtask.reference_id || buildSubtaskReferenceId(parentTaskIdentifier, index + 1),
         }))
       }
     }
@@ -92,11 +112,35 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const supabase = getSupabaseAdminClient()
 
+    const { data: task, error: taskError } = await supabase
+      .from("tasks")
+      .select("task_id, title")
+      .eq("id", taskId)
+      .maybeSingle()
+
+    if (taskError || !task) {
+      console.error("[v0] Error fetching parent task identifier:", taskError)
+      return NextResponse.json({ error: "Failed to resolve parent task" }, { status: 400 })
+    }
+
+    const { count: existingCount, error: countError } = await supabase
+      .from("task_subtasks")
+      .select("id", { count: "exact", head: true })
+      .eq("task_id", taskId)
+
+    if (countError) {
+      console.error("[v0] Error counting existing subtasks:", countError)
+    }
+
+    const nextSequence = (existingCount || 0) + 1
+    const referenceId = buildSubtaskReferenceId(task.task_id || task.title || "TASK", nextSequence)
+
     const { data: subtask, error } = await supabase
       .from("task_subtasks")
       .insert({
         task_id: taskId,
         title: title.trim(),
+        reference_id: referenceId,
         status: "pending",
         assignee_id: assignee_id || null,
         due_date: due_date || null,
@@ -119,7 +163,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       description: `Created subtask: ${title.trim()}`
     })
 
-    return NextResponse.json(subtask, { status: 201 })
+    return NextResponse.json({
+      ...subtask,
+      reference_id: referenceId,
+    }, { status: 201 })
   } catch (error) {
     console.error("[v0] Error creating subtask:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

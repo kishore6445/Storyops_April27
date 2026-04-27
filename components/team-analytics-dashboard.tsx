@@ -12,9 +12,15 @@ interface Task {
   id: string
   task_id?: string
   title: string
+  description?: string
   status: "todo" | "in_progress" | "in_review" | "done"
   due_date?: string
+  due_time?: string
+  promised_date?: string
+  promised_time?: string
+  priority?: "low" | "medium" | "high" | "urgent"
   assigned_to?: string
+  phase?: string
 }
 
 interface TeamMember {
@@ -60,6 +66,7 @@ export function TeamAnalyticsDashboard() {
   const [statusFilter, setStatusFilter] = useState<"all" | "overdue" | "due-soon" | "completed">("all")
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [showTaskModal, setShowTaskModal] = useState(false)
+  const [isTaskLoading, setIsTaskLoading] = useState(false)
   const [showArchiveModal, setShowArchiveModal] = useState(false)
   const [taskToArchive, setTaskToArchive] = useState<Task | null>(null)
   const [isArchiving, setIsArchiving] = useState(false)
@@ -85,6 +92,40 @@ export function TeamAnalyticsDashboard() {
   // Get today's date for comparisons
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+
+  // Load a full task payload before opening the edit modal
+  const handleOpenTaskModal = async (task: Task) => {
+    setIsTaskLoading(true)
+    try {
+      const fullTaskResponse = await fetch(`/api/tasks/${task.id}`, {
+        headers: {
+          Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("sessionToken") : ""}`,
+        },
+      })
+
+      if (!fullTaskResponse.ok) {
+        toast({
+          title: "Unable to open task",
+          description: "Could not load task details. Please try again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const fullTask = await fullTaskResponse.json()
+      setSelectedTask(fullTask)
+      setShowTaskModal(true)
+    } catch (error) {
+      console.error("[v0] Error loading full task details:", error)
+      toast({
+        title: "Unable to open task",
+        description: "Could not load task details. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsTaskLoading(false)
+    }
+  }
 
   // Handle archive action
   // const handleArchiveTask = async () => {
@@ -195,11 +236,9 @@ export function TeamAnalyticsDashboard() {
 
         {/* Task info - clickable */}
         <button
-          onClick={() => {
-            setSelectedTask(task)
-            setShowTaskModal(true)
-          }}
+          onClick={() => handleOpenTaskModal(task)}
           className="flex-1 min-w-0 text-left hover:opacity-75 transition-opacity"
+          disabled={isTaskLoading}
         >
           <p className="font-medium text-gray-900 truncate text-sm">{task.title}</p>
           <p className="text-xs text-gray-500">{task.task_id || task.id}</p>
@@ -244,10 +283,10 @@ export function TeamAnalyticsDashboard() {
   }
 
   return (
-    <div className="bg-white h-full">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+    <div className="bg-white min-h-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-full">
         {/* Left: Team Member List */}
-        <div className="lg:col-span-1 border-r border-gray-200 p-6 overflow-y-auto bg-gray-50">
+        <div className="lg:col-span-1 border-r border-gray-200 p-6 bg-gray-50">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Team</h2>
             <p className="text-sm text-gray-600">Select a member to view their tasks</p>
@@ -313,7 +352,7 @@ export function TeamAnalyticsDashboard() {
         </div>
 
         {/* Right: Tasks View */}
-        <div className="lg:col-span-2 p-6 overflow-y-auto">
+        <div className="lg:col-span-2 p-6">
           {selectedMember ? (
             <>
               {/* Header */}

@@ -442,7 +442,7 @@ export default function KnowledgeBasePage() {
         <TopNav />
         <div className="flex">
           <Sidebar currentPhase="knowledge-base" onPhaseChange={() => {}} />
-          <main className="flex-1 ml-64 mt-16 [@media(max-width:768px)]:ml-20">
+          <main className="flex-1 ml-[var(--sidebar-width,16rem)] mt-16 [@media(max-width:768px)]:ml-20">
             <div className="flex h-[calc(100vh-64px)] bg-white">
       {/* Sync Error Notification */}
       {syncError && (

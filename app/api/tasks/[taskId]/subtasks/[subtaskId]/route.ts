@@ -25,12 +25,25 @@ export async function PATCH(
 
     const supabase = getSupabaseAdminClient()
 
-    // Get current subtask to check old status
+    // Get current subtask to check old status and authorization
     const { data: currentSubtask } = await supabase
       .from("task_subtasks")
-      .select("status")
+      .select("status, assignee_id")
       .eq("id", subtaskId)
       .single()
+
+    if (!currentSubtask) {
+      return NextResponse.json({ error: "Subtask not found" }, { status: 404 })
+    }
+
+    const userRole = (session as any).role || "user"
+    const isAdmin = userRole === "admin" || userRole === "manager"
+    if (!isAdmin && currentSubtask.assignee_id !== session.userId) {
+      return NextResponse.json(
+        { error: "Forbidden: only the assigned user or admin can update this subtask" },
+        { status: 403 }
+      )
+    }
 
     const updateData: any = {}
     if (title !== undefined) updateData.title = title.trim()

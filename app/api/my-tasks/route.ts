@@ -96,6 +96,7 @@ export async function GET(request: NextRequest) {
           id,
           task_id,
           title,
+          reference_id,
           status,
           due_date,
           assignee_id,

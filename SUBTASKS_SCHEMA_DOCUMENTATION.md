@@ -24,6 +24,7 @@ This document explains the SQL schema for the subtasks feature added to your tas
 | `id` | UUID | NO | gen_random_uuid() | Unique identifier for the subtask |
 | `task_id` | UUID | NO | — | Foreign key to parent task; ON DELETE CASCADE means subtasks deleted when task deleted |
 | `title` | TEXT | NO | — | Name/description of the subtask work |
+| `reference_id` | TEXT | YES | NULL | Generated display identifier like `main_task_name_subtask_1` |
 | `description` | TEXT | YES | NULL | Detailed description of work to be done |
 | `assignee_id` | UUID | YES | NULL | User assigned to complete this subtask; can be different from main task owner |
 | `status` | TEXT | NO | 'pending' | Current state: `pending`, `in_progress`, or `done` |

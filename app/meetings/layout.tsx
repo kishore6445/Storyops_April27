@@ -14,7 +14,7 @@ export default function MeetingsLayout({ children }: { children: React.ReactNode
         <TopNav />
         <div className="flex">
           <Sidebar currentPhase={currentPhase} onPhaseChange={setCurrentPhase} />
-          <main className="flex-1 ml-64 mt-16 transition-all duration-300 [@media(max-width:768px)]:ml-20">
+          <main className="flex-1 ml-[var(--sidebar-width,16rem)] mt-16 transition-all duration-300 [@media(max-width:768px)]:ml-20">
             {children}
           </main>
         </div>

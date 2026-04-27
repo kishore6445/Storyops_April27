@@ -11,6 +11,7 @@ import {
   pauseTimerSession,
   resumeTimerSession,
   getTimerSession,
+  getLatestTimerSession,
   getElapsedTime,
   formatTime,
 } from '@/lib/timer-service'
@@ -34,17 +35,41 @@ export function TaskTimer({
   compact = false,
   variant = 'minimal',
 }: TaskTimerProps) {
-  const [isRunning, setIsRunning] = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
-  const [hasStarted, setHasStarted] = useState(false)
+  const [isRunning, setIsRunning] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const session = getLatestTimerSession(taskId)
+    return session ? session.isActive : false
+  })
+  const [isPaused, setIsPaused] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const session = getLatestTimerSession(taskId)
+    if (!session) return false
+    const activeSession = getTimerSession(taskId)
+    return activeSession ? !activeSession.isActive : false
+  })
+  const [isStopped, setIsStopped] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const session = getLatestTimerSession(taskId)
+    if (!session) return false
+    return !getTimerSession(taskId)
+  })
+  const [elapsed, setElapsed] = useState(() => {
+    if (typeof window === 'undefined') return 0
+    return getElapsedTime(taskId)
+  })
+  const [hasStarted, setHasStarted] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return !!getLatestTimerSession(taskId)
+  })
 
-  // Check if there's an existing session
+  // Update timer state if taskId changes or session becomes available
   useEffect(() => {
-    const session = getTimerSession(taskId)
+    const session = getLatestTimerSession(taskId)
     if (session) {
       setHasStarted(true)
       setIsRunning(session.isActive)
+      setIsPaused(!session.isActive && !!getTimerSession(taskId))
+      setIsStopped(!getTimerSession(taskId))
       setElapsed(getElapsedTime(taskId))
     }
   }, [taskId])
@@ -61,20 +86,22 @@ export function TaskTimer({
   }, [isRunning, taskId])
 
   const handleStart = useCallback(() => {
-    if (!hasStarted) {
+    if (!hasStarted || isStopped) {
       startTimerSession(taskId, taskTitle, clientName, sprintName)
       setHasStarted(true)
+      setIsStopped(false)
     } else {
       resumeTimerSession(taskId)
     }
     setIsRunning(true)
     setIsPaused(false)
-  }, [taskId, taskTitle, clientName, sprintName, hasStarted])
+  }, [taskId, taskTitle, clientName, sprintName, hasStarted, isStopped])
 
   const handlePause = useCallback(() => {
     pauseTimerSession(taskId)
     setIsRunning(false)
     setIsPaused(true)
+    setElapsed(getElapsedTime(taskId))
   }, [taskId])
 
   const handleStop = useCallback(async () => {
@@ -165,13 +192,16 @@ export function TaskTimer({
     debugger
     if (!stoppedSession || stoppedSession.duration <= 0) {
       resetTimerSession(taskId)
+      setHasStarted(false)
+      setIsStopped(false)
+      setElapsed(0)
     } else {
       finalizeTimerSession(taskId)
+      setIsStopped(true)
+      setElapsed(stoppedSession.duration)
     }
     setIsRunning(false)
     setIsPaused(false)
-    setHasStarted(false)
-    setElapsed(0)
   }, [taskId])
 
   const handleReset = useCallback(() => {
@@ -179,6 +209,7 @@ export function TaskTimer({
     setIsRunning(false)
     setIsPaused(false)
     setHasStarted(false)
+    setIsStopped(false)
     setElapsed(0)
   }, [taskId])
 
@@ -187,6 +218,15 @@ export function TaskTimer({
   const progressPercent = (elapsed / pomodoroDuration) * 100
   let statusColor = 'text-green-600'
   let bgColor = 'bg-green-50'
+  const statusText = isRunning
+    ? 'Running'
+    : isPaused
+    ? 'Paused'
+    : isStopped
+    ? 'Stopped'
+    : hasStarted
+    ? 'Paused'
+    : 'Not started'
   if (progressPercent >= 90) {
     statusColor = 'text-red-600'
     bgColor = 'bg-red-50'
@@ -468,7 +508,7 @@ export function TaskTimer({
                 {formatTime(elapsed)}
               </div>
               <p className="text-xs text-gray-600 mt-2">
-                {isRunning ? 'Running' : hasStarted ? 'Paused' : 'Not started'}
+                {statusText}
               </p>
             </div>
           </div>

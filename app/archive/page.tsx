@@ -102,7 +102,7 @@ export default function ArchivePage() {
         <TopNav />
         <div className="flex">
           <Sidebar currentPhase="archive" onPhaseChange={() => {}} />
-          <main className="flex-1 ml-64 mt-16 [@media(max-width:768px)]:ml-20">
+          <main className="flex-1 ml-[var(--sidebar-width,16rem)] mt-16 [@media(max-width:768px)]:ml-20">
             <div className="flex-1 overflow-auto p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}

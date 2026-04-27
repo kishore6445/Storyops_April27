@@ -63,10 +63,22 @@ function setCompletedTimerSessions(sessions: TimerSession[]): void {
   localStorage.setItem(COMPLETED_SESSIONS_KEY, JSON.stringify(sessions))
 }
 
-// Get a specific timer session
+// Get a specific active timer session
 export function getTimerSession(taskId: string): TimerSession | null {
   const sessions = getActiveTimerSessions()
   return sessions.find(s => s.taskId === taskId) || null
+}
+
+// Get the latest session for a specific task, active or completed
+export function getLatestTimerSession(taskId: string): TimerSession | null {
+  const activeSession = getTimerSession(taskId)
+  if (activeSession) return activeSession
+
+  const completedSessions = getCompletedTimerSessions()
+    .filter(s => s.taskId === taskId)
+    .sort((a, b) => (b.endTime || 0) - (a.endTime || 0))
+
+  return completedSessions.length > 0 ? completedSessions[0] : null
 }
 
 // Start a new timer session
@@ -102,9 +114,12 @@ export function stopTimerSession(taskId: string): TimerSession | null {
   const session = sessions.find(s => s.taskId === taskId)
 
   if (session) {
+    const now = Date.now()
+    if (session.isActive) {
+      session.duration = Math.floor((now - session.startTime) / 1000)
+    }
     session.isActive = false
-    session.endTime = Date.now()
-    session.duration = Math.floor((session.endTime - session.startTime) / 1000)
+    session.endTime = now
     setActiveTimerSessions(sessions)
     return session
   }
@@ -117,13 +132,16 @@ export function pauseTimerSession(taskId: string): TimerSession | null {
   const sessions = getActiveTimerSessions()
   const session = sessions.find(s => s.taskId === taskId)
 
-  if (session) {
+  if (session && session.isActive) {
+    const now = Date.now()
+    session.duration = Math.floor((now - session.startTime) / 1000)
+    session.endTime = now
     session.isActive = false
     setActiveTimerSessions(sessions)
     return session
   }
 
-  return null
+  return session || null
 }
 
 // Resume a paused timer session
@@ -133,7 +151,8 @@ export function resumeTimerSession(taskId: string): TimerSession | null {
 
   if (session && !session.isActive) {
     session.isActive = true
-    session.startTime = Date.now() - session.duration * 1000
+    session.startTime = Date.now() - (session.duration || 0) * 1000
+    session.endTime = undefined
     setActiveTimerSessions(sessions)
     return session
   }
@@ -208,9 +227,9 @@ export function getTaskTodayHours(taskId: string): number {
   return secondsToHours(totalSeconds)
 }
 
-// Get current elapsed time for an active session
+// Get current elapsed time for the latest session
 export function getElapsedTime(taskId: string): number {
-  const session = getTimerSession(taskId)
+  const session = getLatestTimerSession(taskId)
   if (!session) return 0
 
   if (session.isActive) {

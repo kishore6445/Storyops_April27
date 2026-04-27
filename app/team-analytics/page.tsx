@@ -12,7 +12,10 @@ export default function TeamAnalyticsPage() {
         <Sidebar currentPhase="team-analytics" onPhaseChange={() => {}} />
         <div className="flex-1 flex flex-col">
           <TopNav />
-          <main className="flex-1 overflow-auto bg-white">
+          <main
+            className="flex-1 overflow-auto bg-white mt-16 transition-all duration-300 [@media(max-width:768px)]:ml-20"
+            style={{ marginLeft: "var(--sidebar-width, 16rem)" }}
+          >
             <div className="max-w-7xl mx-auto">
               <TeamAnalyticsDashboard />
             </div>

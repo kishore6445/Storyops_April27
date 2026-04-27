@@ -196,7 +196,7 @@ export default function AccountManagerPage() {
         <TopNav />
         <div className="flex">
           <Sidebar currentPhase={currentPhase} onPhaseChange={setCurrentPhase} />
-          <main className="flex-1 ml-64 transition-all duration-300 mt-16 p-6 [@media(max-width:768px)]:ml-20">
+          <main className="flex-1 ml-[var(--sidebar-width,16rem)] transition-all duration-300 mt-16 p-6 [@media(max-width:768px)]:ml-20">
             <div className="max-w-7xl mx-auto space-y-6">
               {/* HEADER: Compact - Client Name + Sprint Selector + Completion */}
               <div className="flex items-center justify-between gap-4 h-auto">

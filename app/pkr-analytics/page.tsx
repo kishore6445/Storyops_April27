@@ -129,7 +129,7 @@ export default function PKRAnalyticsPage() {
         <TopNav />
         <div className="flex">
           <Sidebar currentPhase={currentPhase} onPhaseChange={setCurrentPhase} />
-          <main className="flex-1 ml-64 transition-all duration-300 mt-16 p-8 [@media(max-width:768px)]:ml-20">
+          <main className="flex-1 ml-[var(--sidebar-width,16rem)] transition-all duration-300 mt-16 p-8 [@media(max-width:768px)]:ml-20">
             <div className="max-w-7xl mx-auto space-y-8">
               {/* Header */}
               <div>

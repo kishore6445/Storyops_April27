@@ -39,8 +39,16 @@ export function useTaskTimer(): UseTaskTimerReturn {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       try {
-        const timer = JSON.parse(stored)
+        const timer: ActiveTimer = JSON.parse(stored)
         setActiveTimer(timer)
+
+        if (timer.isPaused) {
+          setElapsedSeconds(timer.elapsedSeconds)
+        } else {
+          const now = Date.now()
+          const restoredElapsed = Math.floor((now - timer.startedAt) / 1000) + timer.elapsedSeconds
+          setElapsedSeconds(restoredElapsed)
+        }
       } catch (e) {
         console.error("Failed to load timer from storage", e)
       }
