@@ -13,7 +13,7 @@ interface Task {
   task_id?: string
   title: string
   description?: string
-  status: "todo" | "in_progress" | "in_review" | "done"
+  status: "todo" | "pending" | "in_progress" | "in_review" | "done"
   due_date?: string
   due_time?: string
   promised_date?: string
