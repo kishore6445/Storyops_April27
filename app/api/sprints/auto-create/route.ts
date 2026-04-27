@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSupabaseClient } from "@/lib/supabase"
+import { getSupabaseClient } from "@/lib/db"
 import { generateSprintName, getNextSequenceNumber, getNextWeekMonday, getNextWeekSaturday } from "@/lib/sprint-naming"
 
 export async function POST(req: NextRequest) {
