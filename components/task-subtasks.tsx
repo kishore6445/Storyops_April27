@@ -27,7 +27,7 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [showDetails, setShowDetails] = useState(true)
+  const [showDetails, setShowDetails] = useState(false) // Collapsed by default (Phase 1: Better UX)
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("")
   const [selectedAssignee, setSelectedAssignee] = useState<string>("")
   const [selectedDueDate, setSelectedDueDate] = useState<string>("")
@@ -47,6 +47,10 @@ export function TaskSubtasks({ taskId, mainTaskStatus, onStatusBlocked }: Subtas
       try {
         setIsLoading(true)
         const token = localStorage.getItem("sessionToken")
+        // Backend API automatically filters subtasks:
+        // - Non-admin users only see subtasks assigned to them
+        // - Admins/managers see all subtasks
+        // (See: /app/api/tasks/[taskId]/subtasks/route.ts lines 47-48)
         const response = await fetch(`/api/tasks/${taskId}/subtasks`, {
           headers: { "Authorization": `Bearer ${token}` }
         })

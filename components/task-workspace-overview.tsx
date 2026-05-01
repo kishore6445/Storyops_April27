@@ -51,7 +51,7 @@ export function TaskWorkspaceOverview({ task, onStatusBlocked }: TaskWorkspaceOv
   return (
     <div className="space-y-6">
       {/* Subtasks Section */}
-      <div>
+      <div className="border-b border-gray-200 pb-6">
         <TaskSubtasks taskId={task.id} mainTaskStatus={task.status} onStatusBlocked={onStatusBlocked} />
       </div>
 
