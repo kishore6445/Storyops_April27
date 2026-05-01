@@ -82,6 +82,8 @@ export function MyTasksToday() {
   // State for task owner's subtasks that should appear in kanban
   const [ownedTaskSubtasks, setOwnedTaskSubtasks] = useState<any[]>([])
   const [isLoadingSubtasks, setIsLoadingSubtasks] = useState(false)
+  // Track which task cards are expanded to show subtasks
+  const [expandedParentTaskIds, setExpandedParentTaskIds] = useState<Set<string>>(new Set())
 
   // Fetch subtasks for tasks owned by current user
   useEffect(() => {
@@ -155,6 +157,15 @@ export function MyTasksToday() {
     // Fetch subtasks when tasks or currentUserProfile changes
     fetchOwnedTaskSubtasks()
   }, [tasks, currentUserProfile?.id])
+
+  // Calculate subtask counts for each task
+  const taskSubtaskCounts = tasks.reduce((acc, task) => {
+    const count = ownedTaskSubtasks.filter(st => st.parentTaskId === task.id).length
+    if (count > 0) {
+      acc[task.id] = count
+    }
+    return acc
+  }, {} as Record<string, number>)
 
   const [filterPriority, setFilterPriority] = useState<string>("all")
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban")
@@ -664,6 +675,18 @@ console.log("formData entries", Array.from(fileData.entries()))
             onToggleTaskSelection={toggleTaskSelection}
             showCheckboxes={false}
             onArchive={() => mutate()}
+            subtaskCounts={taskSubtaskCounts}
+            expandedParentTaskIds={expandedParentTaskIds}
+            onToggleParentExpand={(taskId) => {
+              const newExpanded = new Set(expandedParentTaskIds)
+              if (newExpanded.has(taskId)) {
+                newExpanded.delete(taskId)
+              } else {
+                newExpanded.add(taskId)
+              }
+              setExpandedParentTaskIds(newExpanded)
+            }}
+            parentTaskSubtasks={ownedTaskSubtasks}
           />
         </div>
       </div>

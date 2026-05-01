@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import type { Task } from "./my-tasks-today"
 import { cn } from "@/lib/utils"
-import { CheckCircle2, Circle, ChevronDown, Calendar, Archive, Copy } from "lucide-react"
+import { CheckCircle2, Circle, ChevronDown, ChevronUp, Calendar, Archive, Copy } from "lucide-react"
 import { TaskTimer } from "./task-timer"
 
 interface KanbanColumn {
@@ -27,11 +27,15 @@ interface TaskKanbanProps {
   onToggleTaskSelection?: (taskId: string) => void
   showCheckboxes?: boolean
   onArchive?: (taskId: string) => void
+  subtaskCounts?: Record<string, number>
+  expandedParentTaskIds?: Set<string>
+  onToggleParentExpand?: (taskId: string) => void
+  parentTaskSubtasks?: any[]
 }
 
 const CARDS_PER_COLUMN_LIMIT = 6
 
-export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate, onEditTask, selectedTaskIds, onToggleTaskSelection, showCheckboxes, onArchive }: TaskKanbanProps) {
+export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate, onEditTask, selectedTaskIds, onToggleTaskSelection, showCheckboxes, onArchive, subtaskCounts = {}, expandedParentTaskIds = new Set(), onToggleParentExpand, parentTaskSubtasks = [] }: TaskKanbanProps) {
   const router = useRouter()
   const [draggedTask, setDraggedTask] = useState<Task | null>(null)
   const [sourceColumn, setSourceColumn] = useState<string | null>(null)
@@ -389,21 +393,49 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                                 </div>
                               )}
 
-                              {/* Task Number - Small, muted, easily copyable */}
-                              <div className="flex items-center justify-between">
-                                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                  {task.taskId || task.id.slice(0, 6).toUpperCase()}
+                              {/* Task Number - Small, muted, easily copyable + Subtask Badge */}
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                    {task.taskId || task.id.slice(0, 6).toUpperCase()}
+                                  </div>
+                                  {/* Subtask Indicator Badge - Blue dot + count */}
+                                  {subtaskCounts[task.id] && !( (task as any).isSubtask) && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                                      <span className="text-lg leading-none">●</span>
+                                      <span className="text-xs font-semibold">{subtaskCounts[task.id]}</span>
+                                    </div>
+                                  )}
                                 </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleCopyTaskId(task.taskId || task.id)
-                                  }}
-                                  className="p-1 rounded hover:bg-gray-100 transition-colors"
-                                  title="Copy task number"
-                                >
-                                  <Copy className={`w-3.5 h-3.5 ${copiedId === (task.taskId || task.id) ? "text-green-500" : "text-gray-400 hover:text-gray-600"}`} />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  {/* Expand/Collapse button - only for tasks with subtasks */}
+                                  {subtaskCounts[task.id] && !( (task as any).isSubtask) && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        onToggleParentExpand?.(task.id)
+                                      }}
+                                      className="p-1 rounded hover:bg-blue-100 transition-colors"
+                                      title={expandedParentTaskIds.has(task.id) ? "Collapse subtasks" : "Expand subtasks"}
+                                    >
+                                      {expandedParentTaskIds.has(task.id) ? (
+                                        <ChevronUp className="w-4 h-4 text-blue-600" />
+                                      ) : (
+                                        <ChevronDown className="w-4 h-4 text-blue-600" />
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleCopyTaskId(task.taskId || task.id)
+                                    }}
+                                    className="p-1 rounded hover:bg-gray-100 transition-colors"
+                                    title="Copy task number"
+                                  >
+                                    <Copy className={`w-3.5 h-3.5 ${copiedId === (task.taskId || task.id) ? "text-green-500" : "text-gray-400 hover:text-gray-600"}`} />
+                                  </button>
+                                </div>
                               </div>
 
                               {/* Parent Task Link - only for subtasks */}
@@ -450,6 +482,33 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                                 <TaskTimer taskId={task.id} taskTitle={task.title} compact variant="minimal" />
                               </div>
                             </div>
+
+                            {/* Expanded Subtasks - Show nested subtasks below parent */}
+                            {expandedParentTaskIds.has(task.id) && !( (task as any).isSubtask) && subtaskCounts[task.id] && (
+                              <div className="mt-2 space-y-2 border-t-2 border-dashed border-blue-200 pt-2">
+                                {parentTaskSubtasks
+                                  .filter(st => st.parentTaskId === task.id)
+                                  .map((subtask) => (
+                                    <div
+                                      key={subtask.id}
+                                      className="ml-2 pl-3 py-2 rounded border-l-2 border-blue-500 bg-blue-50 text-xs hover:bg-blue-100 transition-colors cursor-pointer"
+                                      onClick={() => router.push(`/tasks/${subtask.parentTaskId}`)}
+                                      title={`Subtask: ${subtask.title}`}
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-semibold text-blue-700 truncate">[S] {subtask.reference_id || subtask.id.slice(0, 8)}</p>
+                                          <p className="text-gray-700 line-clamp-1 mt-0.5">{subtask.title}</p>
+                                        </div>
+                                        <span className="inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 flex-shrink-0">
+                                          {subtask.status?.replace("_", " ")}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                            </>
                           )
                         })}
 
