@@ -508,6 +508,8 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                                 </div>
                               )}
                             </div>
+                          )
+                        })}
 
                         {/* Show More / Show Less toggle - Enhanced visibility */}
                         {hasMore && column.id !== "done" && (
