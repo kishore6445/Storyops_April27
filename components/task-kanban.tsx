@@ -304,14 +304,6 @@ export function TaskKanban({
                             <div
                               draggable
                               onDragStart={() => handleDragStart(task, column.id)}
-                              onClick={() => {
-                                if (task.type !== "task") return
-                                if (isSubtaskCard) {
-                                  router.push(`/tasks/${(task as any).parentTaskId}`)
-                                } else {
-                                  router.push(`/tasks/${task.id}`)
-                                }
-                              }}
                               style={{
                                 borderLeftColor: isSubtaskCard ? "#007AFF" : (isDone && isTaskOverdue ? "#FF3B30" : borderColor),
                                 borderLeftWidth: isSubtaskCard ? "3px" : "1px",
@@ -394,8 +386,18 @@ export function TaskKanban({
                                 </div>
                               )}
 
-                              {/* Task title */}
-                              <h4 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">
+                              {/* Task title - click to navigate */}
+                              <h4
+                                className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug cursor-pointer hover:text-blue-600 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (isSubtaskCard) {
+                                    router.push(`/tasks/${(task as any).parentTaskId}`)
+                                  } else {
+                                    router.push(`/tasks/${task.id}`)
+                                  }
+                                }}
+                              >
                                 {task.title}
                               </h4>
 
@@ -509,14 +511,6 @@ export function TaskKanban({
                       key={task.id}
                       draggable
                       onDragStart={() => handleDragStart(task, "done")}
-                      onClick={() => {
-                        if (task.type !== "task") return
-                        if (isSubtaskCard) {
-                          router.push(`/tasks/${(task as any).parentTaskId}`)
-                        } else {
-                          router.push(`/tasks/${task.id}`)
-                        }
-                      }}
                       className={cn(
                         "group p-3 rounded-lg border hover:shadow-sm transition-all cursor-move active:scale-95",
                         isSubtaskCard
@@ -546,7 +540,17 @@ export function TaskKanban({
                           {task.clientName}
                         </div>
                       )}
-                      <h4 className="text-sm font-medium text-gray-800 line-clamp-2 leading-snug group-hover:text-gray-900">
+                      <h4
+                        className="text-sm font-medium text-gray-800 line-clamp-2 leading-snug cursor-pointer hover:text-blue-600 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (isSubtaskCard) {
+                            router.push(`/tasks/${(task as any).parentTaskId}`)
+                          } else {
+                            router.push(`/tasks/${task.id}`)
+                          }
+                        }}
+                      >
                         {task.title}
                       </h4>
                       {!isSubtaskCard && (

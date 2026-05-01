@@ -154,9 +154,10 @@ export function MyTasksToday() {
       }
     }
 
-    // Fetch subtasks when tasks or currentUserProfile changes
+    // Fetch subtasks when data or currentUserProfile changes (data is stable SWR reference)
     fetchOwnedTaskSubtasks()
-  }, [tasks, currentUserProfile?.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, currentUserProfile?.id])
 
   // Calculate subtask counts for each task
   const taskSubtaskCounts = tasks.reduce((acc, task) => {
