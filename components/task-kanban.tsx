@@ -481,36 +481,33 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                               <div className="mt-3 -mx-4 -mb-4 px-4 py-2 border-t border-gray-100 flex items-center justify-between">
                                 <TaskTimer taskId={task.id} taskTitle={task.title} compact variant="minimal" />
                               </div>
-                            </div>
 
-                            {/* Expanded Subtasks - Show nested subtasks below parent */}
-                            {expandedParentTaskIds.has(task.id) && !( (task as any).isSubtask) && subtaskCounts[task.id] && (
-                              <div className="mt-2 space-y-2 border-t-2 border-dashed border-blue-200 pt-2">
-                                {parentTaskSubtasks
-                                  .filter(st => st.parentTaskId === task.id)
-                                  .map((subtask) => (
-                                    <div
-                                      key={subtask.id}
-                                      className="ml-2 pl-3 py-2 rounded border-l-2 border-blue-500 bg-blue-50 text-xs hover:bg-blue-100 transition-colors cursor-pointer"
-                                      onClick={() => router.push(`/tasks/${subtask.parentTaskId}`)}
-                                      title={`Subtask: ${subtask.title}`}
-                                    >
-                                      <div className="flex items-start justify-between gap-2">
-                                        <div className="flex-1 min-w-0">
-                                          <p className="font-semibold text-blue-700 truncate">[S] {subtask.reference_id || subtask.id.slice(0, 8)}</p>
-                                          <p className="text-gray-700 line-clamp-1 mt-0.5">{subtask.title}</p>
+                              {/* Expanded Subtasks - Show nested subtasks below parent */}
+                              {expandedParentTaskIds.has(task.id) && !( (task as any).isSubtask) && subtaskCounts[task.id] && (
+                                <div className="mt-2 space-y-2 border-t-2 border-dashed border-blue-200 pt-2 -mx-4 -mb-4 px-4 py-2">
+                                  {parentTaskSubtasks
+                                    .filter(st => st.parentTaskId === task.id)
+                                    .map((subtask) => (
+                                      <div
+                                        key={subtask.id}
+                                        className="ml-2 pl-3 py-2 rounded border-l-2 border-blue-500 bg-blue-50 text-xs hover:bg-blue-100 transition-colors cursor-pointer"
+                                        onClick={() => router.push(`/tasks/${subtask.parentTaskId}`)}
+                                        title={`Subtask: ${subtask.title}`}
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-blue-700 truncate">[S] {subtask.reference_id || subtask.id.slice(0, 8)}</p>
+                                            <p className="text-gray-700 line-clamp-1 mt-0.5">{subtask.title}</p>
+                                          </div>
+                                          <span className="inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 flex-shrink-0">
+                                            {subtask.status?.replace("_", " ")}
+                                          </span>
                                         </div>
-                                        <span className="inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 flex-shrink-0">
-                                          {subtask.status?.replace("_", " ")}
-                                        </span>
                                       </div>
-                                    </div>
-                                  ))}
-                              </div>
-                            )}
-                            </>
-                          )
-                        })}
+                                    ))}
+                                </div>
+                              )}
+                            </div>
 
                         {/* Show More / Show Less toggle - Enhanced visibility */}
                         {hasMore && column.id !== "done" && (
