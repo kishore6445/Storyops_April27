@@ -26,6 +26,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const resolvedParams = await params
     const taskId = resolvedParams.taskId
 
+    // Allow task owners to see all subtasks for their task
+    // ?asOwner=true is passed when the caller owns the parent task
+    const url = new URL(request.url)
+    const asOwner = url.searchParams.get("asOwner") === "true"
+
+    // Check if the caller is the owner/creator of the parent task
+    let callerIsTaskOwner = false
+    if (!isAdmin && asOwner) {
+      const { data: parentTask } = await supabase
+        .from("tasks")
+        .select("assigned_to, created_by")
+        .eq("id", taskId)
+        .maybeSingle()
+      callerIsTaskOwner = parentTask?.assigned_to === session.userId || parentTask?.created_by === session.userId
+    }
+
     const subtaskQuery = supabase
       .from("task_subtasks")
       .select(`
@@ -44,7 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `)
       .eq("task_id", taskId)
 
-    if (!isAdmin) {
+    if (!isAdmin && !callerIsTaskOwner) {
       subtaskQuery.eq("assignee_id", session.userId)
     }
 

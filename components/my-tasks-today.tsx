@@ -85,15 +85,12 @@ export function MyTasksToday() {
   // Track which task cards are expanded to show subtasks
   const [expandedParentTaskIds, setExpandedParentTaskIds] = useState<Set<string>>(new Set())
 
-  // Fetch subtasks for tasks owned by current user
+  // Fetch subtasks for all tasks in the user's list (all tasks here already belong to current user)
   useEffect(() => {
     const fetchOwnedTaskSubtasks = async () => {
-      if (!currentUserProfile?.id) return
-      
-      // Find tasks where current user is the owner/creator
-      const ownedTasks = tasks.filter(t => t.owner === currentUserProfile.id || t.assignedTo === currentUserProfile.id)
-      
-      if (ownedTasks.length === 0) {
+      // Only fetch for actual sprint tasks (not power moves / workflow steps)
+      const sprintTasks = tasks.filter(t => t.type === "task")
+      if (sprintTasks.length === 0) {
         setOwnedTaskSubtasks([])
         return
       }
@@ -103,61 +100,59 @@ export function MyTasksToday() {
       const allSubtasks: any[] = []
 
       try {
-        // Fetch subtasks for each owned task
-        for (const ownedTask of ownedTasks) {
+        for (const parentTask of sprintTasks) {
           try {
-            const res = await fetch(`/api/tasks/${ownedTask.id}/subtasks`, {
+            // Pass asOwner=true so the API returns all subtasks for this task
+            const res = await fetch(`/api/tasks/${parentTask.id}/subtasks?asOwner=true`, {
               headers: { Authorization: `Bearer ${token}` },
             })
-            
             if (!res.ok) continue
-            
+
             const subtasksData = await res.json()
-            const subtasksArray = Array.isArray(subtasksData) ? subtasksData : subtasksData.subtasks || []
-            
-            // Filter to only include subtasks assigned to OTHER users (not the owner)
-            const otherUsersSubtasks = subtasksArray.filter((st: any) => 
-              st.assignee_id !== currentUserProfile.id
-            )
-            
-            // Transform subtasks into task-like objects for kanban display
-            const transformedSubtasks = otherUsersSubtasks.map((st: any) => ({
+            const subtasksArray = Array.isArray(subtasksData) ? subtasksData : []
+
+            if (subtasksArray.length === 0) continue
+
+            // Transform each subtask into a kanban-compatible object
+            const transformed = subtasksArray.map((st: any) => ({
               id: st.id,
-              taskId: st.task_id,
+              taskId: st.reference_id || st.id,
               title: st.title,
-              description: st.description,
-              status: st.status || "todo",
-              dueDate: st.due_date,
-              priority: st.priority || "medium",
-              owner: st.assignee_id,
-              assignedTo: st.assignee_id,
-              clientName: ownedTask.clientName,
-              phaseName: ownedTask.phaseName,
-              sectionName: ownedTask.sectionName,
+              description: "",
+              status: st.status === "pending" ? "todo" : (st.status || "todo"),
+              dueDate: st.due_date || "",
+              priority: "medium" as const,
+              owner: parentTask.owner,
+              assignedTo: st.assignee_id || "",
+              clientName: parentTask.clientName,
+              phaseName: parentTask.phaseName,
+              sectionName: parentTask.sectionName,
               completed: st.status === "done",
-              type: "task",
-              isSubtask: true, // Flag to identify as subtask
-              parentTaskId: ownedTask.id,
-              parentTaskTitle: ownedTask.title,
+              type: "task" as const,
+              isSubtask: true,
+              parentTaskId: parentTask.id,
+              parentTaskTitle: parentTask.title,
               reference_id: st.reference_id,
             }))
-            
-            allSubtasks.push(...transformedSubtasks)
+
+            allSubtasks.push(...transformed)
           } catch (err) {
-            console.error(`[v0] Error fetching subtasks for task ${ownedTask.id}:`, err)
+            console.error(`[v0] Error fetching subtasks for task ${parentTask.id}:`, err)
           }
         }
-        
+
         setOwnedTaskSubtasks(allSubtasks)
       } finally {
         setIsLoadingSubtasks(false)
       }
     }
 
-    // Fetch subtasks when data or currentUserProfile changes (data is stable SWR reference)
-    fetchOwnedTaskSubtasks()
+    // Depend on data (stable SWR ref) so this only re-runs when the API response changes
+    if (data) {
+      fetchOwnedTaskSubtasks()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, currentUserProfile?.id])
+  }, [data])
 
   // Calculate subtask counts for each task
   const taskSubtaskCounts = tasks.reduce((acc, task) => {
