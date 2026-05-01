@@ -354,10 +354,16 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                               onDragStart={() => handleDragStart(task, column.id)}
                               onClick={() => {
                                 if (task.type !== "task") return
-                                router.push(`/tasks/${task.id}`)
+                                // For subtasks, navigate to parent task detail
+                                if ((task as any).isSubtask) {
+                                  router.push(`/tasks/${(task as any).parentTaskId}`)
+                                } else {
+                                  router.push(`/tasks/${task.id}`)
+                                }
                               }}
                               style={{
-                                borderLeftColor: isDone && isTaskOverdue ? "#FF3B30" : borderColor,
+                                borderLeftColor: (task as any).isSubtask ? "#007AFF" : (isDone && isTaskOverdue ? "#FF3B30" : borderColor),
+                                borderLeftWidth: (task as any).isSubtask ? "3px" : "1px",
                               }}
                               className={cn(
                                 "group relative rounded-lg border border-gray-200 p-4 cursor-move transition-all duration-150",
@@ -366,14 +372,23 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                                 draggedTask?.id === task.id
                                   ? "opacity-50 shadow-lg ring-2 ring-blue-200"
                                   : "",
-                                // Minimal color coding
-                                isDone ? "bg-white border-green-200" : "",
-                                !isDone && isTaskOverdue ? "bg-red-50 border-red-300" : "",
-                                !isDone && isToday && !isTaskOverdue ? "bg-orange-50 border-orange-200" : "",
-                                !isDone && !isTaskOverdue && !isToday ? "bg-white" : "",
+                                // Subtask styling - blue left border with light blue background
+                                (task as any).isSubtask ? "bg-blue-50 border-blue-100" : "",
+                                // Minimal color coding for regular tasks
+                                !( (task as any).isSubtask) && isDone ? "bg-white border-green-200" : "",
+                                !( (task as any).isSubtask) && !isDone && isTaskOverdue ? "bg-red-50 border-red-300" : "",
+                                !( (task as any).isSubtask) && !isDone && isToday && !isTaskOverdue ? "bg-orange-50 border-orange-200" : "",
+                                !( (task as any).isSubtask) && !isDone && !isTaskOverdue && !isToday ? "bg-white" : "",
                                 "flex flex-col gap-2"
                               )}
                             >
+                              {/* Subtask Badge - if this is a subtask */}
+                              {(task as any).isSubtask && (
+                                <div className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded w-fit">
+                                  <span>SUBTASK</span>
+                                </div>
+                              )}
+
                               {/* Task Number - Small, muted, easily copyable */}
                               <div className="flex items-center justify-between">
                                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -391,8 +406,15 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                                 </button>
                               </div>
 
+                              {/* Parent Task Link - only for subtasks */}
+                              {(task as any).isSubtask && (task as any).parentTaskTitle && (
+                                <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                  Parent: {(task as any).parentTaskTitle}
+                                </div>
+                              )}
+
                               {/* Client Name - Clear identifier */}
-                              {task.clientName && (
+                              {task.clientName && !( (task as any).isSubtask) && (
                                 <div className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
                                   {task.clientName}
                                 </div>
@@ -493,14 +515,39 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                     onDragStart={() => handleDragStart(task, "done")}
                     onClick={() => {
                       if (task.type !== "task") return
-                      router.push(`/tasks/${task.id}`)
+                      // For subtasks, navigate to parent task detail
+                      if ((task as any).isSubtask) {
+                        router.push(`/tasks/${(task as any).parentTaskId}`)
+                      } else {
+                        router.push(`/tasks/${task.id}`)
+                      }
                     }}
-                    className="group p-3 rounded-lg border border-green-100 bg-green-50 hover:border-green-200 hover:shadow-sm transition-all cursor-move active:scale-95"
+                    className={cn(
+                      "group p-3 rounded-lg border hover:shadow-sm transition-all cursor-move active:scale-95",
+                      (task as any).isSubtask 
+                        ? "border-blue-200 bg-blue-50 hover:border-blue-300" 
+                        : "border-green-100 bg-green-50 hover:border-green-200"
+                    )}
+                    style={{
+                      borderLeftColor: (task as any).isSubtask ? "#007AFF" : undefined,
+                      borderLeftWidth: (task as any).isSubtask ? "3px" : undefined,
+                    }}
                   >
-                    <div className="text-xs font-medium text-green-700 uppercase tracking-wide mb-1">
+                    {/* Subtask Badge - if this is a subtask */}
+                    {(task as any).isSubtask && (
+                      <div className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded w-fit mb-1">
+                        SUBTASK
+                      </div>
+                    )}
+                    <div className={`text-xs font-medium ${(task as any).isSubtask ? "text-blue-700" : "text-green-700"} uppercase tracking-wide mb-1`}>
                       {task.taskId || task.id.slice(0, 6).toUpperCase()}
                     </div>
-                    {task.clientName && (
+                    {(task as any).isSubtask && (task as any).parentTaskTitle && (
+                      <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200 mb-2">
+                        Parent: {(task as any).parentTaskTitle}
+                      </div>
+                    )}
+                    {task.clientName && !( (task as any).isSubtask) && (
                       <div className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded mb-2">
                         {task.clientName}
                       </div>
@@ -508,17 +555,19 @@ export function TaskKanban({ tasks, onTaskStatusChange, isLoading, onTaskUpdate,
                     <h4 className="text-sm font-medium text-gray-800 line-clamp-2 leading-snug group-hover:text-gray-900">
                       {task.title}
                     </h4>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleArchiveTask(task.id)
-                      }}
-                      disabled={archivingId === task.id}
-                      className="mt-2 flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-orange-600 hover:bg-orange-50 border border-gray-200 hover:border-orange-200 rounded transition-all disabled:opacity-40 w-full justify-center"
-                    >
-                      <Archive className="w-3 h-3" />
-                      {archivingId === task.id ? "Archiving..." : "Archive"}
-                    </button>
+                    {!( (task as any).isSubtask) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleArchiveTask(task.id)
+                        }}
+                        disabled={archivingId === task.id}
+                        className="mt-2 flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-orange-600 hover:bg-orange-50 border border-gray-200 hover:border-orange-200 rounded transition-all disabled:opacity-40 w-full justify-center"
+                      >
+                        <Archive className="w-3 h-3" />
+                        {archivingId === task.id ? "Archiving..." : "Archive"}
+                      </button>
+                    )}
                   </div>
                 ))}
             </div>
