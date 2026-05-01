@@ -88,8 +88,10 @@ export function MyTasksToday() {
   // Fetch subtasks for all tasks in the user's list (all tasks here already belong to current user)
   useEffect(() => {
     const fetchOwnedTaskSubtasks = async () => {
-      // Only fetch for actual sprint tasks (not power moves / workflow steps)
-      const sprintTasks = tasks.filter(t => t.type === "task")
+      // Derive directly from data so we always have a fresh list
+      const rawTasks: Task[] = (data?.tasks || []).map((t: Task) => ({ ...t, status: t.status || "todo" }))
+      // Fetch subtasks for all tasks regardless of type (type may be undefined from older data)
+      const sprintTasks = rawTasks.filter(t => !t.type || t.type === "task")
       if (sprintTasks.length === 0) {
         setOwnedTaskSubtasks([])
         return
@@ -102,21 +104,22 @@ export function MyTasksToday() {
       try {
         for (const parentTask of sprintTasks) {
           try {
-            // Pass asOwner=true so the API returns all subtasks for this task
+            // Pass asOwner=true so the API returns all subtasks for this task, not just the user's own
             const res = await fetch(`/api/tasks/${parentTask.id}/subtasks?asOwner=true`, {
               headers: { Authorization: `Bearer ${token}` },
             })
             if (!res.ok) continue
 
             const subtasksData = await res.json()
+            // API returns array directly
             const subtasksArray = Array.isArray(subtasksData) ? subtasksData : []
 
             if (subtasksArray.length === 0) continue
 
-            // Transform each subtask into a kanban-compatible object
+            // Transform each subtask into a Task-compatible object for kanban rendering
             const transformed = subtasksArray.map((st: any) => ({
               id: st.id,
-              taskId: st.reference_id || st.id,
+              taskId: st.reference_id || st.id.slice(0, 8).toUpperCase(),
               title: st.title,
               description: "",
               status: st.status === "pending" ? "todo" : (st.status || "todo"),
