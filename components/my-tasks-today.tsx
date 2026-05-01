@@ -79,11 +79,6 @@ export function MyTasksToday() {
     status: task.status || "todo",
   }))
 
-  const assignedSubtasks: any[] = data?.assignedSubtasks || []
-  const displayedAssignedSubtasks = currentUserProfile?.id
-    ? assignedSubtasks.filter((subtask) => subtask.assignee_id === currentUserProfile.id || subtask.assignee?.id === currentUserProfile.id)
-    : assignedSubtasks
-
   const [filterPriority, setFilterPriority] = useState<string>("all")
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban")
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -546,34 +541,6 @@ console.log("formData entries", Array.from(fileData.entries()))
     return statusCycle[currentStatus] || "pending"
   }
 
-  const handleAssignedSubtaskClick = async (subtask: any) => {
-    const token = localStorage.getItem("sessionToken")
-    const nextStatus = getNextSubtaskStatus(subtask.status)
-    if (nextStatus === subtask.status) return
-
-    try {
-      const response = await fetch(`/api/tasks/${subtask.task_id}/subtasks/${subtask.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: nextStatus }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        console.error("[v0] Error updating subtask status:", errorData.error || response.statusText)
-        return
-      }
-
-      // Refresh assigned subtasks and related task data
-      mutate()
-    } catch (error) {
-      console.error("[v0] Error updating subtask status:", error)
-    }
-  }
-
 
   if (isLoading) {
     return (
@@ -608,46 +575,6 @@ console.log("formData entries", Array.from(fileData.entries()))
           onSprintFilterChange={setSprintFilter}
           onAddTask={() => setShowCreateModal(true)}
         />
-
-        {displayedAssignedSubtasks.length > 0 && (
-          <div className="px-8 py-4">
-            <div className="bg-white border border-[#E5E5E7] rounded-3xl p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">Assigned Subtasks</h2>
-                  <p className="text-xs text-slate-500 mt-1">You have {displayedAssignedSubtasks.length} subtask{displayedAssignedSubtasks.length > 1 ? "s" : ""} assigned to you.</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {displayedAssignedSubtasks.map((subtask) => (
-                  <div
-                    key={subtask.id}
-                    role="button"
-                    onClick={() => handleAssignedSubtaskClick(subtask)}
-                    className="flex flex-col gap-2 rounded-2xl border border-[#E5E5E7] bg-[#F8FAFC] p-4 cursor-pointer hover:bg-slate-100 transition-colors"
-                    title="Click to advance subtask lifecycle: Created → In Progress → In Review → Done"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">{subtask.title}</p>
-                        {subtask.task_title && (
-                          <p className="text-xs text-slate-500 truncate">Task: {subtask.task_title}</p>
-                        )}
-                      </div>
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700">
-                        {subtask.status?.replace("_", " ") || "pending"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4 text-xs text-slate-500">
-                      <span>{subtask.due_date ? new Date(subtask.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "No due date"}</span>
-                      <span>Subtask ID: {subtask.reference_id || subtask.id}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Kanban Board - Clean spacing */}
         <div className="px-8 py-6">
