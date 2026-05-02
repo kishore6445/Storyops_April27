@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/db"
+import { getSupabase } from "@/lib/db"
 import { getUserFromRequest } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     const campaignId = request.nextUrl.searchParams.get("campaign_id")
 
-    let query = supabase
+    let query = getSupabase()
       .from("campaign_metrics")
       .select("*")
       .order("date", { ascending: false })

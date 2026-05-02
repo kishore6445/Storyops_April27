@@ -22,8 +22,8 @@ export function getSupabaseClient() {
   return supabaseClient
 }
 
-// Export supabase as a named export for convenience
-export const supabase = getSupabaseClient()
+// Lazy getter for supabase - don't initialize at import time
+export const getSupabase = () => getSupabaseClient()
 
 export function getSupabaseAdminClient() {
   if (!supabaseAdminClient) {
