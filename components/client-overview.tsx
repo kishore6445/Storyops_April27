@@ -239,6 +239,7 @@ export function ClientOverview() {
           setSelectedTask(task)
           setShowTaskModal(true)
         }}
+        onCloseSprint={handleCloseSprint}
       />
 
       {/* Task Edit Modal */}

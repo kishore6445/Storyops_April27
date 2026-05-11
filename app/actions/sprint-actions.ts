@@ -1,11 +1,9 @@
 "use server"
 
-import { createClient } from "@supabase/supabase-js"
+import { getSupabaseClient } from "@/lib/db"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-)
+// Lazy getter - don't initialize supabase at module load time
+const getSupabase = () => getSupabaseClient()
 
 interface CloseSprintPayload {
   sprintId: string
@@ -19,7 +17,7 @@ export async function closeSprintAction(payload: CloseSprintPayload) {
     const { sprintId, destination, newSprintName, tasksToMigrate } = payload
 
     // 1. Get the current sprint to verify it exists
-    const { data: sprint, error: sprintError } = await supabase
+    const { data: sprint, error: sprintError } = await getSupabase()
       .from("sprints")
       .select("*")
       .eq("id", sprintId)
@@ -34,30 +32,22 @@ export async function closeSprintAction(payload: CloseSprintPayload) {
 
     if (destination === "new-sprint" && newSprintName) {
       // Create new sprint
-      const { data: newSprint, error: createError } = await supabase
-        .from("sprints")
-        .insert({
-          name: newSprintName,
-          client_id: sprint.client_id,
-          status: "planning",
-          start_date: new Date().toISOString().split("T")[0],
-          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-        })
-        .select("id")
-        .single()
+    const { data: newSprint, error: createError } = await getSupabase()
+      .from("sprints")
+      .insert({
+        name: newSprintName,
+        client_id: sprint.client_id,
+        status: "active",
+      })
+      .select()
+      .single()
 
-      if (createError) {
-        console.error("[v0] Error creating new sprint:", createError)
-        return { success: false, error: "Failed to create new sprint" }
-      }
-
-      destinationSprintId = newSprint?.id
+    if (createError || !newSprint) {
+      return { success: false, error: "Failed to create new sprint" }
     }
-    // If destination is "backlog", destinationSprintId stays null
 
     // 3. Migrate tasks
-    if (tasksToMigrate.length > 0) {
-      const { error: migrateError } = await supabase
+    const { error: migrateError } = await getSupabase()
         .from("tasks")
         .update({ sprint_id: destinationSprintId })
         .in("id", tasksToMigrate)
@@ -69,7 +59,7 @@ export async function closeSprintAction(payload: CloseSprintPayload) {
     }
 
     // 4. Mark sprint as completed
-    const { error: closeError } = await supabase
+    const { error: closeError } = await getSupabase()
       .from("sprints")
       .update({ status: "completed", closed_at: new Date().toISOString() })
       .eq("id", sprintId)

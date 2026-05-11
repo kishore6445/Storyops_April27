@@ -1,9 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseClient } from '@/lib/db'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Lazy getter - don't initialize supabase at module load time
+const getSupabase = () => getSupabaseClient()
 
 export const PLATFORMS = [
   'Instagram',

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/db"
+import { getSupabase } from "@/lib/db"
 import { getUserFromRequest } from "@/lib/auth"
 
 // GET /api/campaigns - Fetch all campaigns
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: campaigns, error } = await supabase
+    const { data: campaigns, error } = await getSupabase()
       .from("campaigns")
       .select(`
         *,

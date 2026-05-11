@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/db"
+import { getSupabase } from "@/lib/db"
 import { getUserFromRequest } from "@/lib/auth"
 
 export async function GET(request: NextRequest) {
