@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Save, Loader, Copy, BookOpen } from "lucide-react"
+import { Save, Loader, Copy, BookOpen, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 
@@ -26,6 +26,11 @@ export function MeetingsMomTab({ meeting, onUpdate }: MeetingsMomTabProps) {
   const { toast } = useToast()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [showKBModal, setShowKBModal] = useState(false)
+  const [kbFormData, setKbFormData] = useState({
+    title: meeting.title || "",
+    tags: "",
+  })
   const [formData, setFormData] = useState({
     summary: meeting.summary || "",
     keyDecisions: meeting.key_decisions || [""],
@@ -116,6 +121,40 @@ Shared via StoryOps`
       console.error("[v0] Error saving MOM:", error)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleAddToKB = async () => {
+    try {
+      const token = localStorage.getItem("sessionToken")
+      const response = await fetch("/api/knowledge-base", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          title: kbFormData.title,
+          content: formData.summary,
+          source_meeting_id: meeting.id,
+          tags: kbFormData.tags.split(",").map(t => t.trim()).filter(Boolean),
+        }),
+      })
+
+      if (response.ok) {
+        setShowKBModal(false)
+        setKbFormData({
+          title: meeting.title || "",
+          tags: "",
+        })
+        toast({
+          title: "Added to Knowledge Base",
+          description: "The meeting summary has been saved",
+          duration: 2000,
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error adding to KB:", error)
     }
   }
 
@@ -246,12 +285,72 @@ Shared via StoryOps`
               Copy for WhatsApp
             </button>
             <button
+              onClick={() => setShowKBModal(true)}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
             >
               <BookOpen className="w-4 h-4" />
               Knowledge Base
             </button>
           </div>
+
+          {/* KB Modal */}
+          {showKBModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-lg max-w-md w-full space-y-4">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <h4 className="text-lg font-semibold text-gray-900">Add to Knowledge Base</h4>
+                  <button
+                    onClick={() => setShowKBModal(false)}
+                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-600" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-2">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={kbFormData.title}
+                      onChange={(e) => setKbFormData({ ...kbFormData, title: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-2">
+                      Tags (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={kbFormData.tags}
+                      onChange={(e) => setKbFormData({ ...kbFormData, tags: e.target.value })}
+                      placeholder="e.g., client feedback, design, development"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={handleAddToKB}
+                      className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                    >
+                      Add to KB
+                    </button>
+                    <button
+                      onClick={() => setShowKBModal(false)}
+                      className="flex-1 px-4 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

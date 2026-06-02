@@ -133,20 +133,32 @@ export function MeetingsTasksPanel({
             />
 
             <div className="grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                placeholder="Due Date"
-                value={newTask.due_date}
-                onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="date"
-                placeholder="Promised Date"
-                value={newTask.promised_date}
-                onChange={(e) => setNewTask({ ...newTask, promised_date: e.target.value })}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div>
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1">
+                  Due Date
+                  <span className="text-gray-400 text-xs font-normal ml-1">(internal)</span>
+                </label>
+                <input
+                  type="date"
+                  title="Internal deadline for task completion"
+                  value={newTask.due_date}
+                  onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1">
+                  Promised Date
+                  <span className="text-gray-400 text-xs font-normal ml-1">(client)</span>
+                </label>
+                <input
+                  type="date"
+                  title="Promised delivery date to client"
+                  value={newTask.promised_date}
+                  onChange={(e) => setNewTask({ ...newTask, promised_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             <select
