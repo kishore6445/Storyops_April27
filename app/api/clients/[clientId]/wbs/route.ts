@@ -49,19 +49,33 @@ export async function GET(
 
     const supabase = getSupabaseAdminClient()
 
-    // Fetch WBS tasks (main tasks and subtasks with wbs_code)
-    const { data: tasks, error } = await supabase
+    // Fetch only main tasks (parent_task_id is null)
+    const { data: mainTasks, error: mainError } = await supabase
       .from("tasks")
       .select("*")
       .eq("client_id", clientId)
-      .not("wbs_code", "is", null)
+      .is("parent_task_id", null)
       .order("wbs_code", { ascending: true })
 
-    if (error) throw error
+    if (mainError) throw mainError
 
-    const tree = buildWBSTree(tasks || [])
+    // For each main task, fetch its subtasks
+    const tasksWithSubtasks = await Promise.all(
+      (mainTasks || []).map(async (task) => {
+        const { data: subtasks } = await supabase
+          .from("tasks")
+          .select("*")
+          .eq("parent_task_id", task.id)
+          .order("wbs_code", { ascending: true })
 
-    return NextResponse.json({ wbs: tree, success: true })
+        return {
+          ...task,
+          subtasks: subtasks || [],
+        }
+      })
+    )
+
+    return NextResponse.json({ tasks: tasksWithSubtasks, success: true })
   } catch (error) {
     console.error("[v0] Error fetching WBS:", error)
     return NextResponse.json({ error: "Failed to fetch WBS" }, { status: 500 })
@@ -87,7 +101,7 @@ export async function POST(
       return NextResponse.json({ error: "Invalid session" }, { status: 401 })
     }
 
-    const { title, description, assignee_id, due_date, promised_date, parent_task_id } = await request.json()
+    const { title, assigned_to, due_date, promised_date } = await request.json()
 
     if (!title) {
       return NextResponse.json({ error: "Missing title" }, { status: 400 })
@@ -95,41 +109,17 @@ export async function POST(
 
     const supabase = getSupabaseAdminClient()
 
-    let wbs_code: string
+    // Get the next WBS code (1, 2, 3, etc.)
+    const { data: existingTasks } = await supabase
+      .from("tasks")
+      .select("wbs_code")
+      .eq("client_id", clientId)
+      .is("parent_task_id", null)
+      .order("wbs_code", { ascending: false })
+      .limit(1)
 
-    if (parent_task_id) {
-      // This is a subtask, generate code like "1.1", "1.2"
-      const { data: siblings } = await supabase
-        .from("tasks")
-        .select("wbs_code")
-        .eq("parent_task_id", parent_task_id)
-        .eq("client_id", clientId)
-        .order("wbs_code", { ascending: false })
-        .limit(1)
-
-      const parentTask = await supabase
-        .from("tasks")
-        .select("wbs_code")
-        .eq("id", parent_task_id)
-        .single()
-
-      const parentCode = parentTask.data?.wbs_code
-      const lastNum = siblings?.[0]?.wbs_code ? parseInt(siblings[0].wbs_code.split(".").pop() || "0") : 0
-      wbs_code = `${parentCode}.${lastNum + 1}`
-    } else {
-      // This is a main task
-      const { data: siblings } = await supabase
-        .from("tasks")
-        .select("wbs_code")
-        .eq("client_id", clientId)
-        .isNull("parent_task_id")
-        .not("wbs_code", "is", null)
-        .order("wbs_code", { ascending: false })
-        .limit(1)
-
-      const lastNum = siblings?.[0]?.wbs_code ? parseInt(siblings[0].wbs_code) : 0
-      wbs_code = String(lastNum + 1)
-    }
+    const lastNum = existingTasks?.[0]?.wbs_code ? parseInt(existingTasks[0].wbs_code) : 0
+    const wbs_code = String(lastNum + 1)
 
     // Create task with WBS code
     const { data: task, error } = await supabase
@@ -137,17 +127,13 @@ export async function POST(
       .insert({
         client_id: clientId,
         title,
-        description,
-        assigned_to: assignee_id || null,
-        due_date,
-        promised_date,
-        parent_task_id: parent_task_id || null,
+        assigned_to: assigned_to || null,
+        due_date: due_date || null,
+        promised_date: promised_date || null,
+        parent_task_id: null,
         wbs_code,
-        status: "todo",
+        status: "to-do",
         progress_percentage: 0,
-        is_main_task: !parent_task_id,
-        is_subtask: !!parent_task_id,
-        auto_assigned_at: assignee_id ? new Date().toISOString() : null,
       })
       .select()
       .single()
