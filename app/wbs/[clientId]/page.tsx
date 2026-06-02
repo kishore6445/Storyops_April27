@@ -44,10 +44,15 @@ export default function WBSClientPage({ params }: { params: { clientId: string }
   const tasks: MainTask[] = wbsData?.tasks || []
 
   const handleCreateTask = async () => {
-    if (!newTask.title.trim()) return
+    if (!newTask.title.trim()) {
+      alert("Please enter a phase name")
+      return
+    }
 
     try {
       const token = localStorage.getItem("sessionToken")
+      console.log("[v0] Creating phase with:", { title: newTask.title, assigned_to: newTask.assigned_to, clientId: params.clientId, token: !!token })
+      
       const response = await fetch(`/api/clients/${params.clientId}/wbs`, {
         method: "POST",
         headers: {
@@ -60,12 +65,22 @@ export default function WBSClientPage({ params }: { params: { clientId: string }
         }),
       })
 
+      console.log("[v0] Response status:", response.status)
+      const responseData = await response.json()
+      console.log("[v0] Response data:", responseData)
+
       if (response.ok) {
         setNewTask({ title: "", assigned_to: "" })
         setShowNewTaskForm(false)
+        alert("Phase created successfully!")
+        // Refresh the WBS data
+        window.location.reload()
+      } else {
+        alert("Error creating phase: " + (responseData.error || "Unknown error"))
       }
     } catch (error) {
       console.error("[v0] Error creating task:", error)
+      alert("Error creating phase: " + error)
     }
   }
 

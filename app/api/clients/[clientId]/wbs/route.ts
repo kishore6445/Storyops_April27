@@ -89,28 +89,40 @@ export async function POST(
   const { clientId } = await params
 
   try {
+    console.log("[v0] POST /api/clients/[clientId]/wbs called with clientId:", clientId)
+    
     const authHeader = request.headers.get("authorization")
     const sessionToken = authHeader?.replace("Bearer ", "") || request.cookies.get("session")?.value
 
+    console.log("[v0] Session token:", !!sessionToken)
+
     if (!sessionToken) {
+      console.log("[v0] No session token provided")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const session = await validateSession(sessionToken)
+    console.log("[v0] Session validation result:", !!session)
+    
     if (!session) {
+      console.log("[v0] Invalid session")
       return NextResponse.json({ error: "Invalid session" }, { status: 401 })
     }
 
-    const { title, assigned_to, due_date, promised_date } = await request.json()
+    const body = await request.json()
+    console.log("[v0] Request body:", body)
+    
+    const { title, assigned_to, due_date, promised_date } = body
 
     if (!title) {
+      console.log("[v0] Missing title")
       return NextResponse.json({ error: "Missing title" }, { status: 400 })
     }
 
     const supabase = getSupabaseAdminClient()
 
     // Get the next WBS code (1, 2, 3, etc.)
-    const { data: existingTasks } = await supabase
+    const { data: existingTasks, error: queryError } = await supabase
       .from("tasks")
       .select("wbs_code")
       .eq("client_id", clientId)
@@ -118,8 +130,15 @@ export async function POST(
       .order("wbs_code", { ascending: false })
       .limit(1)
 
+    if (queryError) {
+      console.error("[v0] Error querying existing tasks:", queryError)
+      throw queryError
+    }
+
     const lastNum = existingTasks?.[0]?.wbs_code ? parseInt(existingTasks[0].wbs_code) : 0
     const wbs_code = String(lastNum + 1)
+
+    console.log("[v0] Creating task with WBS code:", wbs_code)
 
     // Create task with WBS code
     const { data: task, error } = await supabase
@@ -138,11 +157,15 @@ export async function POST(
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error("[v0] Error inserting task:", error)
+      throw error
+    }
 
+    console.log("[v0] Task created successfully:", task)
     return NextResponse.json({ task, success: true }, { status: 201 })
   } catch (error) {
     console.error("[v0] Error creating WBS task:", error)
-    return NextResponse.json({ error: "Failed to create task" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to create task: " + (error instanceof Error ? error.message : String(error)) }, { status: 500 })
   }
 }
