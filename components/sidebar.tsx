@@ -37,6 +37,7 @@ import {
   Archive,
   Briefcase,
   BarChart2,
+  GitBranch,
 } from "lucide-react"
 
 const primaryNav = [
@@ -79,6 +80,12 @@ const myTasksSubmenu = [
     name: "Meetings",
     icon: Calendar,
     href: "/meetings",
+  },
+  {
+    id: "wbs",
+    name: "WBS",
+    icon: GitBranch,
+    href: "/wbs",
   },
   {
     id: "archive",
