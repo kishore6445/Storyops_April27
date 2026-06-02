@@ -33,16 +33,17 @@ const fetcher = async (url: string) => {
   return response.json()
 }
 
-export default function WBSProjectPage({ params }: { params: { projectId: string } }) {
+export default function WBSClientPage({ params }: { params: { projectId: string } }) {
   const router = useRouter()
-  const { data: projectData } = useSWR(`/api/projects/${params.projectId}`, fetcher)
-  const { data: wbsData, mutate } = useSWR(`/api/projects/${params.projectId}/wbs`, fetcher)
+  const { data: clientData } = useSWR(`/api/clients/${params.projectId}`, fetcher)
+  const { data: wbsData, mutate } = useSWR(`/api/clients/${params.projectId}/wbs`, fetcher)
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
   const [showNewTaskForm, setShowNewTaskForm] = useState(false)
-  const [newTask, setNewTask] = useState({ title: "", assigned_to: "" })
+  const [parentTaskId, setParentTaskId] = useState<string | null>(null)
+  const [newTask, setNewTask] = useState({ title: "", assigned_to: "", due_date: "", promised_date: "" })
 
-  const project: Project = projectData?.project
-  const tasks: Task[] = wbsData?.tasks || []
+  const client: any = clientData?.clients?.[0] || {}
+  const tasks: Task[] = wbsData?.wbs || []
 
   const toggleExpand = (taskId: string) => {
     const newExpanded = new Set(expandedTasks)
@@ -59,7 +60,7 @@ export default function WBSProjectPage({ params }: { params: { projectId: string
 
     try {
       const token = localStorage.getItem("sessionToken")
-      const response = await fetch(`/api/projects/${params.projectId}/wbs`, {
+      const response = await fetch(`/api/clients/${params.projectId}/wbs`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -67,13 +68,17 @@ export default function WBSProjectPage({ params }: { params: { projectId: string
         },
         body: JSON.stringify({
           title: newTask.title,
-          assigned_to: newTask.assigned_to || undefined,
+          assignee_id: newTask.assigned_to || undefined,
+          due_date: newTask.due_date || undefined,
+          promised_date: newTask.promised_date || undefined,
+          parent_task_id: parentTaskId || undefined,
         }),
       })
 
       if (response.ok) {
-        setNewTask({ title: "", assigned_to: "" })
+        setNewTask({ title: "", assigned_to: "", due_date: "", promised_date: "" })
         setShowNewTaskForm(false)
+        setParentTaskId(null)
         mutate()
       }
     } catch (error) {
@@ -172,7 +177,7 @@ export default function WBSProjectPage({ params }: { params: { projectId: string
     )
   }
 
-  if (!project) {
+  if (!client || !client.id) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-gray-500">Loading...</div>
@@ -193,24 +198,10 @@ export default function WBSProjectPage({ params }: { params: { projectId: string
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
             <div className="flex-1">
-              <h1 className="text-3xl font-light text-gray-900">{project.title}</h1>
-              <p className="text-sm text-gray-600 mt-1">{project.goal}</p>
-            </div>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Overall Progress</span>
-              <span className="text-sm font-semibold text-gray-900">
-                {Math.round(project.progress_percentage)}%
-              </span>
-            </div>
-            <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-600 transition-all"
-                style={{ width: `${project.progress_percentage}%` }}
-              />
+              <h1 className="text-3xl font-light text-gray-900">{client.name} - WBS</h1>
+              {client.description && (
+                <p className="text-sm text-gray-600 mt-1">{client.description}</p>
+              )}
             </div>
           </div>
         </div>
@@ -230,7 +221,7 @@ export default function WBSProjectPage({ params }: { params: { projectId: string
         {/* New Task Form */}
         {showNewTaskForm && (
           <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Task</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New {parentTaskId ? "Subtask" : "Main Task"}</h3>
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-2">
@@ -253,9 +244,34 @@ export default function WBSProjectPage({ params }: { params: { projectId: string
                   type="text"
                   value={newTask.assigned_to}
                   onChange={(e) => setNewTask({ ...newTask, assigned_to: e.target.value })}
-                  placeholder="Team member name"
+                  placeholder="Team member name or email"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-2">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newTask.due_date}
+                    onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-2">
+                    Promised Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newTask.promised_date}
+                    onChange={(e) => setNewTask({ ...newTask, promised_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               <div className="flex gap-2">
@@ -266,7 +282,11 @@ export default function WBSProjectPage({ params }: { params: { projectId: string
                   Create Task
                 </button>
                 <button
-                  onClick={() => setShowNewTaskForm(false)}
+                  onClick={() => {
+                    setShowNewTaskForm(false)
+                    setParentTaskId(null)
+                    setNewTask({ title: "", assigned_to: "", due_date: "", promised_date: "" })
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors"
                 >
                   Cancel
