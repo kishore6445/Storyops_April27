@@ -14,25 +14,27 @@ const fetcher = async (url: string) => {
   return response.json()
 }
 
-interface Client {
+interface Project {
   id: string
   name: string
   description?: string
+  goal?: string
+  status: string
 }
 
 export default function WBSPage() {
   const router = useRouter()
-  const { data, isLoading } = useSWR("/api/clients", fetcher)
-  const [clients, setClients] = useState<Client[]>([])
+  const { data, isLoading } = useSWR("/api/projects", fetcher)
+  const [projects, setProjects] = useState<Project[]>([])
 
   useEffect(() => {
-    if (data?.clients) {
-      setClients(data.clients)
+    if (data?.projects) {
+      setProjects(data.projects)
     }
   }, [data])
 
-  const handleSelectClient = (clientId: string) => {
-    router.push(`/wbs/${clientId}`)
+  const handleSelectProject = (projectId: string) => {
+    router.push(`/wbs/${projectId}`)
   }
 
   return (
@@ -42,7 +44,7 @@ export default function WBSPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-light text-gray-900">Work Breakdown Structure</h1>
-            <p className="text-sm text-gray-500 mt-1">Create and manage client project WBS</p>
+            <p className="text-sm text-gray-500 mt-1">Plan and decompose projects hierarchically</p>
           </div>
         </div>
       </div>
@@ -53,26 +55,34 @@ export default function WBSPage() {
           <div className="flex items-center justify-center py-12">
             <Loader className="w-6 h-6 text-gray-400 animate-spin" />
           </div>
-        ) : clients.length === 0 ? (
+        ) : projects.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-600">No clients available. Create a client first.</p>
+            <p className="text-gray-600">No projects available. Create a project first.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {clients.map((client) => (
+            {projects.map((project) => (
               <button
-                key={client.id}
-                onClick={() => handleSelectClient(client.id)}
+                key={project.id}
+                onClick={() => handleSelectProject(project.id)}
                 className="text-left p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">{client.name}</h3>
-                    {client.description && (
-                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">{client.description}</p>
+                    <h3 className="text-lg font-semibold text-gray-900">{project.name}</h3>
+                    {project.description && (
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">{project.description}</p>
                     )}
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                  <span className="inline-block px-2.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                    {project.status}
+                  </span>
+                  {project.goal && (
+                    <span className="text-xs text-gray-500">Goal: {project.goal}</span>
+                  )}
                 </div>
               </button>
             ))}
@@ -82,3 +92,4 @@ export default function WBSPage() {
     </div>
   )
 }
+
