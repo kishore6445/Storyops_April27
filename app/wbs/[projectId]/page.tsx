@@ -24,13 +24,11 @@ interface WBSItem {
   wbs_code: string
   status: string
   priority: string
-  assignee_id?: string
+  assigned_to?: string
   sprint_id?: string
   due_date?: string
   estimated_hours?: number
   progress_percentage: number
-  linked_task_id?: string
-  is_leaf_node: boolean
   position: number
   children?: WBSItem[]
 }
@@ -121,23 +119,6 @@ export default function WBSProjectPage({
       }
 
       setError(null)
-      
-      // Recalculate progress for entire tree
-      const progressToken = localStorage.getItem("sessionToken")
-      await fetch(
-        `/api/projects/${params.projectId}/wbs/recalculate-progress`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(progressToken ? { "Authorization": `Bearer ${progressToken}` } : {}),
-          },
-        }
-      ).catch(() => {
-        // Silent fail for progress recalc
-        console.log("[v0] Progress recalculation in background")
-      })
-      
       mutate()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update WBS item")
