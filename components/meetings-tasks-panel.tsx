@@ -38,7 +38,13 @@ export function MeetingsTasksPanel({
   onAddTask 
 }: MeetingsTasksPanelProps) {
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newTask, setNewTask] = useState({ title: "", assignee: "", priority: "medium" })
+  const [newTask, setNewTask] = useState({ 
+    title: "", 
+    assignee: "", 
+    priority: "medium",
+    due_date: "",
+    promised_date: ""
+  })
 
   const handleAddTask = async () => {
     if (!newTask.title.trim()) return
@@ -53,12 +59,15 @@ export function MeetingsTasksPanel({
         },
         body: JSON.stringify({
           title: newTask.title,
+          assignee: newTask.assignee || undefined,
           priority: newTask.priority,
+          due_date: newTask.due_date || undefined,
+          promised_date: newTask.promised_date || undefined,
         }),
       })
 
       if (response.ok) {
-        setNewTask({ title: "", assignee: "", priority: "medium" })
+        setNewTask({ title: "", assignee: "", priority: "medium", due_date: "", promised_date: "" })
         setShowAddForm(false)
         onAddTask?.()
       }
@@ -114,25 +123,52 @@ export function MeetingsTasksPanel({
               onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            
+            <input
+              type="text"
+              placeholder="Assignee name..."
+              value={newTask.assignee}
+              onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                placeholder="Due Date"
+                value={newTask.due_date}
+                onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="date"
+                placeholder="Promised Date"
+                value={newTask.promised_date}
+                onChange={(e) => setNewTask({ ...newTask, promised_date: e.target.value })}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <select
+              value={newTask.priority}
+              onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="low">Low Priority</option>
+              <option value="medium">Medium Priority</option>
+              <option value="high">High Priority</option>
+            </select>
+
             <div className="flex gap-2">
-              <select
-                value={newTask.priority}
-                onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
               <button
                 onClick={handleAddTask}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors"
+                className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors"
               >
-                Save
+                Add Task
               </button>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="px-3 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium rounded-lg text-sm transition-colors"
+                className="flex-1 px-3 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium rounded-lg text-sm transition-colors"
               >
                 Cancel
               </button>
@@ -181,8 +217,13 @@ export function MeetingsTasksPanel({
 
                   <div className="flex gap-2 flex-wrap">
                     {task.due_date && (
-                      <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                        {new Date(task.due_date).toLocaleDateString()}
+                      <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                        Due: {new Date(task.due_date).toLocaleDateString()}
+                      </span>
+                    )}
+                    {task.promised_date && (
+                      <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">
+                        Promised: {new Date(task.promised_date).toLocaleDateString()}
                       </span>
                     )}
                     {task.priority && (
