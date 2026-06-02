@@ -20,7 +20,15 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdminClient()
     const { data: clients, error } = await supabase
       .from('clients')
-      .select('*')
+      .select(`
+        *,
+        client_phases(
+          id,
+          phase_name,
+          phase_order,
+          status
+        )
+      `)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -28,7 +36,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch clients" }, { status: 500 })
     }
 
-    return NextResponse.json({ clients })
+    // Map phases to expected format
+    const formattedClients = clients.map(client => ({
+      ...client,
+      phases: client.client_phases.map((phase: any) => ({
+        id: phase.id,
+        name: phase.phase_name,
+        order: phase.phase_order,
+        status: phase.status
+      }))
+    }))
+
+    return NextResponse.json({ clients: formattedClients })
   } catch (error) {
     console.error("[v0] Error fetching clients:", error)
     return NextResponse.json({ error: "Failed to fetch clients" }, { status: 500 })

@@ -1,22 +1,28 @@
 "use server"
 
-import { createClient } from "@supabase/supabase-js"
 import { NextRequest, NextResponse } from "next/server"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-)
+import { getSupabaseAdminClient } from "@/lib/db"
+import { validateSession } from "@/lib/auth"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { clientId: string; phaseId: string } }
 ) {
   try {
+    // Validate session
     const authHeader = request.headers.get("authorization")
-    if (!authHeader?.startsWith("Bearer ")) {
+    const sessionToken = authHeader?.replace("Bearer ", "") || request.cookies.get("session")?.value
+
+    if (!sessionToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+
+    const session = await validateSession(sessionToken)
+    if (!session) {
+      return NextResponse.json({ error: "Invalid session" }, { status: 401 })
+    }
+
+    const supabase = getSupabaseAdminClient()
 
     // Fetch phase details
     const { data: phase, error: phaseError } = await supabase
