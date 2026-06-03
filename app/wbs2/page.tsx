@@ -70,6 +70,10 @@ const WORKSTREAM_COLORS = [
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+// Safe array fetcher — always returns an array even if the API returns an error object
+const arrayFetcher = (url: string) =>
+  fetch(url).then((r) => r.json()).then((d) => (Array.isArray(d) ? d : []))
+
 // ─── Tree helpers ─────────────────────────────────────────────────────────────
 
 function buildTree(nodes: DbNode[], wsId: string): VNode[] {
@@ -837,9 +841,9 @@ export default function WBS2Page() {
   const [showNewPlan, setShowNewPlan] = useState(false)
 
   // Remote data
-  const { data: plans, mutate: mutatePlans } = useSWR<DbPlan[]>("/api/wbs2/plans", fetcher, { fallbackData: [] })
-  const { data: clients } = useSWR<DbClient[]>("/api/wbs2/clients", fetcher, { fallbackData: [] })
-  const { data: users } = useSWR<DbUser[]>("/api/wbs2/users", fetcher, { fallbackData: [] })
+  const { data: plans = [], mutate: mutatePlans } = useSWR<DbPlan[]>("/api/wbs2/plans", arrayFetcher)
+  const { data: clients = [] } = useSWR<DbClient[]>("/api/wbs2/clients", arrayFetcher)
+  const { data: users = [] } = useSWR<DbUser[]>("/api/wbs2/users", arrayFetcher)
   const {
     data: planData,
     mutate: mutatePlan,
@@ -854,7 +858,7 @@ export default function WBS2Page() {
 
   // When plans load, auto-select the first one
   useEffect(() => {
-    if (!activePlanId && plans && plans.length > 0) {
+    if (!activePlanId && plans.length > 0) {
       setActivePlanId(plans[0].id)
     }
   }, [plans, activePlanId])
@@ -910,7 +914,7 @@ export default function WBS2Page() {
   }
 
   const isLoading = activePlanId && !planData
-  const hasPlans = plans && plans.length > 0
+  const hasPlans = plans.length > 0
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col" style={{ fontFamily: "Inter, sans-serif" }}>
