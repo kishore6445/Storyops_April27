@@ -85,7 +85,7 @@ const myTasksSubmenu = [
     id: "wbs",
     name: "WBS",
     icon: GitBranch,
-    href: "/wbs",
+    href: "/wbs2",
   },
   {
     id: "archive",
