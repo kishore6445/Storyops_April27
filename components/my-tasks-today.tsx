@@ -77,7 +77,7 @@ export function MyTasksToday() {
   // Fetch WBS2 tasks assigned to current user
   // Profile returns full_name (not fullName)
   const wbs2Assignee = currentUserProfile?.full_name || currentUserProfile?.display_name || null
-  const { data: wbs2TasksData = [] } = useSWR<Task[]>(
+  const { data: wbs2TasksData = [], mutate: mutateWbs2 } = useSWR<Task[]>(
     wbs2Assignee ? `/api/wbs2/nodes/my-tasks?assignee=${encodeURIComponent(wbs2Assignee)}` : null,
     (url: string) =>
       fetch(url)
@@ -85,13 +85,22 @@ export function MyTasksToday() {
         .then((d) => (Array.isArray(d) ? d : []))
   )
 
+  // Local optimistic status overrides for WBS2 tasks (keyed by node id)
+  const [wbs2Statuses, setWbs2Statuses] = useState<Record<string, string>>({})
+
   const tasks: Task[] = (data?.tasks || []).map((task: Task) => ({
     ...task,
     status: task.status || "todo",
   }))
 
-  // Merge WBS2 tasks into the task list
-  const allTasks = [...tasks, ...wbs2TasksData]
+  // Merge WBS2 tasks — apply local optimistic status overrides so drag-drop reflects instantly
+  const allTasks = [
+    ...tasks,
+    ...wbs2TasksData.map((t) => ({
+      ...t,
+      status: wbs2Statuses[t.id] ?? t.status,
+    })),
+  ]
 
   // State for task owner's subtasks that should appear in kanban
   const [ownedTaskSubtasks, setOwnedTaskSubtasks] = useState<any[]>([])
@@ -399,57 +408,37 @@ export function MyTasksToday() {
     const task = allTasks.find((t) => t.id === taskId)
     if (!task) return
 
-    console.log("[v0] handleTaskStatusChange called:", { taskId, newStatus, taskTitle: task.title, source: task.source_table })
-
-    // Optimistic update
-    mutate(
-      {
-        tasks: tasks.map((t) =>
-          t.id === taskId ? { ...t, status: newStatus } : t
-        ),
-      },
-      false
-    )
-
-    try {
-      const token = localStorage.getItem("sessionToken")
-      console.log("[v0] Sending task update to API:", { taskId, status: newStatus, source: task.source_table })
-      
-      // If it's a WBS2 task, use the WBS2 API
-      if (task.source_table === 'wbs2_nodes') {
-        const response = await fetch("/api/wbs2/nodes/update-status", {
+    if (task.source_table === 'wbs2_nodes') {
+      // Optimistic update for WBS2 task — updates allTasks immediately via wbs2Statuses
+      setWbs2Statuses((prev) => ({ ...prev, [taskId]: newStatus }))
+      try {
+        await fetch("/api/wbs2/nodes/update-status", {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ nodeId: taskId, status: newStatus }),
         })
-        console.log("[v0] WBS2 task update API response status:", response.status)
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error("[v0] WBS2 task update API error:", errorData)
-        }
-      } else {
-        // Regular task
-        const response = await fetch("/api/tasks", {
+        mutateWbs2()
+      } catch {
+        // Revert optimistic update on error
+        setWbs2Statuses((prev) => ({ ...prev, [taskId]: task.status }))
+      }
+    } else {
+      // Regular task — optimistic update via SWR mutate
+      mutate(
+        { tasks: tasks.map((t) => t.id === taskId ? { ...t, status: newStatus } : t) },
+        false
+      )
+      try {
+        const token = localStorage.getItem("sessionToken")
+        await fetch("/api/tasks", {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ taskId, status: newStatus }),
         })
-        console.log("[v0] Task update API response status:", response.status)
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error("[v0] Task update API error:", errorData)
-        }
+        mutate()
+      } catch {
+        mutate()
       }
-      mutate()
-    } catch (error) {
-      console.error("[v0] Error updating task status:", error)
-      // Revert on error
-      mutate()
     }
   }
 
