@@ -774,12 +774,12 @@ function NewPlanModal({
               value={clientId}
               onChange={(e) => {
                 setClientId(e.target.value)
-                const found = clients.find((c) => c.id === e.target.value)
+                const found = clients?.find((c) => c.id === e.target.value)
                 if (found) setClientName(found.name)
               }}
             >
               <option value="">-- Select client --</option>
-              {clients.map((c) => (
+              {clients?.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
