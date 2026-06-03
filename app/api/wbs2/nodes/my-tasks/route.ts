@@ -5,13 +5,13 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-// Map WBS2 status values to Task status values expected by kanban
+// Map WBS2 status values (title-cased) to kanban status values
 const statusMap: Record<string, string> = {
-  'not_started': 'todo',
-  'in_progress': 'in_progress',
-  'waiting_client': 'in_review',
-  'blocked': 'todo', // Blocked tasks appear in "Waiting" column
-  'done': 'done',
+  'Not Started': 'todo',
+  'In Progress': 'in_progress',
+  'Waiting Client': 'in_review',
+  'Blocked': 'todo',
+  'Done': 'done',
 }
 
 export async function GET(req: Request) {
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
       return Response.json({ error: 'Missing assignee parameter' }, { status: 400 })
     }
 
-    // Fetch all WBS2 nodes assigned to this user — get plan info via workstream join
+    // Fetch all WBS2 nodes assigned to this user — join plan directly via plan_id
     const { data: nodes, error } = await supabase
       .from('wbs2_nodes')
       .select(`
@@ -33,18 +33,16 @@ export async function GET(req: Request) {
         type,
         status,
         assignee,
-        end_date,
+        internal_due_date,
         sprint,
         plan_id,
-        wbs2_workstreams(name, plan_id),
-        wbs2_plans(client_name, wbs_name)
+        wbs2_plans ( client_name, wbs_name )
       `)
       .eq('assignee', assignee)
-      .neq('status', 'done')
+      .neq('status', 'Done')
 
     if (error) {
       console.error('[v0] Error fetching WBS2 nodes:', error.message)
-      // If table doesn't exist yet, return empty array gracefully
       return Response.json([])
     }
 
@@ -56,15 +54,15 @@ export async function GET(req: Request) {
         taskId: node.code,
         title: node.title,
         description: '',
-        completed: node.status === 'done',
-        clientName: plan?.client_name || '',
-        phaseName: plan?.wbs_name || 'WBS',
+        completed: false,
+        clientName: plan?.client_name || 'WBS',
+        phaseName: plan?.wbs_name || '',
         sectionName: node.type || '',
-        dueDate: node.end_date || '',
+        dueDate: node.internal_due_date || '',
         priority: 'medium' as const,
         owner: node.assignee,
         assignedTo: node.assignee,
-        status: statusMap[node.status] || 'todo',
+        status: statusMap[node.status] ?? 'todo',
         type: 'task' as const,
         source_table: 'wbs2_nodes',
       }

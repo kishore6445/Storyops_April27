@@ -5,12 +5,12 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-// Map kanban status values back to WBS2 status values
+// Map kanban status values back to WBS2 title-cased status values
 const reverseStatusMap: Record<string, string> = {
-  'todo': 'not_started',
-  'in_progress': 'in_progress',
-  'in_review': 'waiting_client',
-  'done': 'done',
+  'todo': 'Not Started',
+  'in_progress': 'In Progress',
+  'in_review': 'Waiting Client',
+  'done': 'Done',
 }
 
 export async function PATCH(req: Request) {
@@ -26,7 +26,7 @@ export async function PATCH(req: Request) {
     }
 
     // Map kanban status to WBS2 status
-    const wbs2Status = reverseStatusMap[status] || 'not_started'
+    const wbs2Status = reverseStatusMap[status] || 'Not Started'
 
     // Update the node's status
     const { data, error } = await supabase
