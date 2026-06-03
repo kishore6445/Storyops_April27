@@ -940,7 +940,7 @@ export default function WBS2Page() {
         <div className="flex-1 flex flex-col">
 
 
-          <div className="min-h-screen bg-gray-100 flex flex-col" style={{ fontFamily: "Inter, sans-serif" }}>
+          <div className="min-h-screen bg-gray-100 flex flex-col ml-[273px]" style={{ fontFamily: "Inter, sans-serif" }}>
             {/* ── Header ── */}
             <header className="flex items-center gap-4 px-5 py-3 bg-[#0d1117] sticky top-0 z-30 flex-wrap">
               <span className="text-yellow-400 font-extrabold text-xl mr-2 whitespace-nowrap">
