@@ -936,7 +936,7 @@ export default function WBS2Page() {
 
     <AuthGuard>
       <div className="flex min-h-screen bg-slate-50">
-        <Sidebar   />
+        <Sidebar currentPhase="" on  />
         <div className="flex-1 flex flex-col">
 
 
