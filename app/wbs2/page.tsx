@@ -936,7 +936,7 @@ export default function WBS2Page() {
 
     <AuthGuard>
       <div className="flex min-h-screen bg-slate-50">
-        <Sidebar currentPhase="" on  />
+        <Sidebar currentPhase="" onPhaseChange={() => { }} />
         <div className="flex-1 flex flex-col">
 
 
@@ -1131,6 +1131,6 @@ export default function WBS2Page() {
 
         </div>
       </div>
-      </AuthGuard>
-      )
+    </AuthGuard>
+  )
 }
