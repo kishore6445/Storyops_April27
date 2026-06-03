@@ -1,8 +1,5 @@
 -- WBS2 Dedicated Tables
--- ✅ THIS is the correct script to run for the /wbs2 page.
--- Prerequisites: 001-create-social-media-tables.sql must have been run first
---   (it creates the "clients" and "users" tables that this script references).
--- Run this entire script in the Supabase SQL editor once.
+-- Run this script in Supabase SQL editor before using the /wbs2 page
 
 -- ─── wbs2_plans ────────────────────────────────────────────────────────────────
 -- One plan = one Client + WBS Name + date range
