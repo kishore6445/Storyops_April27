@@ -1,3 +1,6 @@
+-- ⚠️  DO NOT RUN THIS SCRIPT — it requires a "projects" table that does not exist.
+-- This file is legacy/unused. For the /wbs2 page, run 029-create-wbs2-tables.sql instead.
+
 -- WBS (Work Breakdown Structure) Tables for Supabase
 
 -- WBS Items table - Hierarchical nodes in the WBS tree
