@@ -936,7 +936,7 @@ export default function WBS2Page() {
     <AuthGuard>
       <div className="flex min-h-screen bg-slate-50">
         <Sidebar currentPhase="daily-report" onPhaseChange={() => { }} />
-        <div className="flex-1 flex flex-col"></div>
+        <div className="flex-1 flex flex-col">
 
 
         <div className="min-h-screen bg-gray-100 flex flex-col" style={{ fontFamily: "Inter, sans-serif" }}>
@@ -1127,5 +1127,8 @@ export default function WBS2Page() {
             />
           )}
         </div>
+
+          </div>
+          
         )
 }
