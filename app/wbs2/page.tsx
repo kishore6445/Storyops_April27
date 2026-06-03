@@ -932,6 +932,13 @@ export default function WBS2Page() {
   const hasPlans = plans.length > 0
 
   return (
+
+     <AuthGuard>
+      <div className="flex min-h-screen bg-slate-50">
+        <Sidebar currentPhase="daily-report" onPhaseChange={() => { }} />
+        <div className="flex-1 flex flex-col"></div>
+
+
     <div className="min-h-screen bg-gray-100 flex flex-col" style={{ fontFamily: "Inter, sans-serif" }}>
       {/* ── Header ── */}
       <header className="flex items-center gap-4 px-5 py-3 bg-[#0d1117] sticky top-0 z-30 flex-wrap">
