@@ -70,6 +70,12 @@ const primaryNav = [
 
 const myTasksSubmenu = [
   {
+    id: "tasks",
+    name: "Tasks",
+    icon: CheckSquare,
+    href: "/tasks",
+  },
+  {
     id: "daily-work",
     name: "Daily Work",
     icon: Clock,
