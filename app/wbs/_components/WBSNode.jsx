@@ -14,11 +14,10 @@ export default function WBSNode({
       <div
         onClick={() => onSelect(node.id)}
         className={`cursor-pointer rounded-xl border bg-white p-4 shadow
-        ${
-          selectedId === node.id
+        ${selectedId === node.id
             ? "border-blue-600"
             : ""
-        }`}
+          }`}
       >
         <div className="font-bold">
           {node.title}
