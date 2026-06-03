@@ -18,7 +18,6 @@ interface Project {
   id: string
   name: string
   description?: string
-  goal?: string
   status: string
 }
 
@@ -43,7 +42,7 @@ export default function WBSPage() {
       <div className="border-b border-gray-200 px-8 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-light text-gray-900">Work Breakdown Structure</h1>
+            <h1 className="text-3xl font-bold text-gray-900">WBS Canvas</h1>
             <p className="text-sm text-gray-500 mt-1">Plan and decompose projects hierarchically</p>
           </div>
         </div>
@@ -76,13 +75,10 @@ export default function WBSPage() {
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 </div>
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <div className="pt-3 border-t border-gray-100">
                   <span className="inline-block px-2.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
                     {project.status}
                   </span>
-                  {project.goal && (
-                    <span className="text-xs text-gray-500">Goal: {project.goal}</span>
-                  )}
                 </div>
               </button>
             ))}
@@ -92,4 +88,3 @@ export default function WBSPage() {
     </div>
   )
 }
-

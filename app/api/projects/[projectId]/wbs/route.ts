@@ -2,55 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdminClient } from "@/lib/db"
 import { validateSession } from "@/lib/auth"
 
-interface WBSItem {
-  id: string
-  parent_id: string | null
-  title: string
-  description?: string
-  wbs_code: string
-  status: string
-  priority: string
-  assigned_to?: string
-  sprint_id?: string
-  due_date?: string
-  estimated_hours?: number
-  progress_percentage: number
-  position: number
-  children?: WBSItem[]
-}
-
-function buildWBSTree(items: WBSItem[]): WBSItem[] {
-  const itemMap = new Map<string, WBSItem>()
-  const rootItems: WBSItem[] = []
-
-  items.forEach((item) => {
-    itemMap.set(item.id, { ...item, children: [] })
-  })
-
-  items.forEach((item) => {
-    const mappedItem = itemMap.get(item.id)!
-    if (item.parent_id) {
-      const parent = itemMap.get(item.parent_id)
-      if (parent) {
-        if (!parent.children) parent.children = []
-        parent.children.push(mappedItem)
-      }
-    } else {
-      rootItems.push(mappedItem)
-    }
-  })
-
-  const sortByPosition = (items: WBSItem[]) => {
-    items.sort((a, b) => a.position - b.position)
-    items.forEach((item) => {
-      if (item.children) sortByPosition(item.children)
-    })
-  }
-
-  sortByPosition(rootItems)
-  return rootItems
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: { projectId: string } }
@@ -81,30 +32,58 @@ export async function GET(
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
-    // Fetch all WBS items for project from tasks table
-    const { data: items, error } = await supabase
-      .from("tasks")
+    // Get or create WBS board
+    let { data: board, error: boardError } = await supabase
+      .from("wbs_boards")
       .select("*")
       .eq("project_id", params.projectId)
-      .not("wbs_code", "is", null)
-      .order("position", { ascending: true })
+      .single()
 
-    if (error) {
-      console.error("[v0] Error fetching WBS:", error)
-      throw error
+    if (boardError && boardError.code === "PGRST116") {
+      // Board doesn't exist, create it
+      const { data: newBoard, error: createError } = await supabase
+        .from("wbs_boards")
+        .insert({
+          project_id: params.projectId,
+          name: "WBS Canvas",
+          created_by: session.userId,
+        })
+        .select()
+        .single()
+
+      if (createError) throw createError
+      board = newBoard
+    } else if (boardError) {
+      throw boardError
     }
 
-    const tree = buildWBSTree(items || [])
+    // Get all lanes for board
+    const { data: lanes, error: lanesError } = await supabase
+      .from("wbs_lanes")
+      .select("*")
+      .eq("board_id", board.id)
+      .order("position", { ascending: true })
+
+    if (lanesError) throw lanesError
+
+    // Get all nodes for board with their hierarchy
+    const { data: nodes, error: nodesError } = await supabase
+      .from("wbs_nodes")
+      .select("*")
+      .eq("board_id", board.id)
+      .order("lane_id,position", { ascending: true })
+
+    if (nodesError) throw nodesError
 
     return NextResponse.json({
-      tree: tree,
-      items: items || [],
-      count: items?.length || 0,
+      board,
+      lanes: lanes || [],
+      nodes: nodes || [],
       success: true,
     })
   } catch (error) {
-    console.error("[v0] Error fetching WBS:", error)
-    return NextResponse.json({ error: "Failed to fetch WBS" }, { status: 500 })
+    console.error("[v0] Error fetching WBS board:", error)
+    return NextResponse.json({ error: "Failed to fetch WBS board" }, { status: 500 })
   }
 }
 
@@ -125,87 +104,60 @@ export async function POST(
       return NextResponse.json({ error: "Invalid session" }, { status: 401 })
     }
 
-    const { title, description, parent_id, assigned_to, sprint_id, due_date, estimated_hours, priority } =
-      await request.json()
-
-    if (!title) {
-      return NextResponse.json({ error: "Title is required" }, { status: 400 })
-    }
+    const body = await request.json()
+    const { type } = body
 
     const supabase = getSupabaseAdminClient()
 
-    let wbs_code = "1"
-
-    if (parent_id) {
-      // Get parent's WBS code
-      const { data: parent, error: parentError } = await supabase
-        .from("tasks")
-        .select("wbs_code")
-        .eq("id", parent_id)
-        .single()
-
-      if (parentError || !parent) {
-        return NextResponse.json({ error: "Parent not found" }, { status: 404 })
-      }
-
-      // Get siblings count to generate code
-      const { data: siblings, error: siblingsError } = await supabase
-        .from("tasks")
-        .select("wbs_code")
-        .eq("parent_id", parent_id)
-        .eq("project_id", params.projectId)
-
-      if (siblingsError) throw siblingsError
-
-      const siblingCount = siblings?.length || 0
-      wbs_code = `${parent.wbs_code}.${siblingCount + 1}`
-    } else {
-      // Root level: get highest number
-      const { data: rootItems, error: rootError } = await supabase
-        .from("tasks")
-        .select("wbs_code")
-        .eq("project_id", params.projectId)
-        .is("parent_id", null)
-        .not("wbs_code", "is", null)
-
-      if (rootError) throw rootError
-
-      const maxCode = (rootItems || []).reduce((max, item) => {
-        const num = parseInt(item.wbs_code.split(".")[0]) || 0
-        return Math.max(max, num)
-      }, 0)
-
-      wbs_code = String(maxCode + 1)
-    }
-
-    // Create WBS item using tasks table
-    const { data: item, error } = await supabase
-      .from("tasks")
-      .insert({
-        project_id: params.projectId,
-        parent_id: parent_id || null,
-        title,
-        description: description || null,
-        wbs_code,
-        status: "to-do",
-        priority: priority || "medium",
-        assigned_to: assigned_to || null,
-        sprint_id: sprint_id || null,
-        due_date: due_date || null,
-        estimated_hours: estimated_hours || null,
-        progress_percentage: 0,
-        position: 0,
-      })
-      .select()
+    // Get board
+    const { data: board, error: boardError } = await supabase
+      .from("wbs_boards")
+      .select("id")
+      .eq("project_id", params.projectId)
       .single()
 
-    if (error) throw error
+    if (boardError || !board) {
+      return NextResponse.json({ error: "WBS board not found" }, { status: 404 })
+    }
 
-    return NextResponse.json({ item, success: true }, { status: 201 })
+    // Create lane
+    if (type === "lane") {
+      const { name, color } = body
+
+      if (!name) {
+        return NextResponse.json({ error: "Lane name is required" }, { status: 400 })
+      }
+
+      // Get max position
+      const { data: lanes, error: maxError } = await supabase
+        .from("wbs_lanes")
+        .select("position")
+        .eq("board_id", board.id)
+        .order("position", { ascending: false })
+        .limit(1)
+
+      if (maxError) throw maxError
+
+      const position = (lanes?.[0]?.position ?? -1) + 1
+
+      const { data: lane, error } = await supabase
+        .from("wbs_lanes")
+        .insert({
+          board_id: board.id,
+          name,
+          color: color || "#3B82F6",
+          position,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      return NextResponse.json({ lane, success: true }, { status: 201 })
+    }
+
+    return NextResponse.json({ error: "Invalid request type" }, { status: 400 })
   } catch (error) {
-    console.error("[v0] Error creating WBS item:", error)
-    return NextResponse.json({ error: "Failed to create WBS item: " + (error instanceof Error ? error.message : String(error)) }, { status: 500 })
+    console.error("[v0] Error in WBS board POST:", error)
+    return NextResponse.json({ error: "Failed to process request" }, { status: 500 })
   }
 }
-
-
