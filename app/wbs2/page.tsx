@@ -149,15 +149,12 @@ function RightPanel({
   const [form, setForm] = useState<Partial<DbNode>>({})
   const [saving, setSaving] = useState(false)
 
-  // Fetch sprints for the current client
-  const { data: sprintsData = [] } = useSWR<any>(
-    clientId ? `/api/sprints?clientId=${clientId}` : null,
+  // Fetch sprints for the current client (uses service-role key, no auth required)
+  const { data: sprintsData } = useSWR<any>(
+    clientId ? `/api/wbs2/sprints?clientId=${clientId}` : null,
     fetcher
   )
-
-  // Extract sprints array and log for debugging
-  const sprints = Array.isArray(sprintsData?.sprints) ? sprintsData.sprints : []
-  console.log("[v0] clientId:", clientId, "sprints response:", sprintsData, "parsed sprints:", sprints)
+  const sprints: { id: string; name: string }[] = Array.isArray(sprintsData?.sprints) ? sprintsData.sprints : []
 
   // Reset form when selected node changes
   useEffect(() => {
