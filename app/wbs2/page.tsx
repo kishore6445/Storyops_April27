@@ -933,199 +933,199 @@ export default function WBS2Page() {
 
   return (
 
-     <AuthGuard>
+    <AuthGuard>
       <div className="flex min-h-screen bg-slate-50">
         <Sidebar currentPhase="daily-report" onPhaseChange={() => { }} />
         <div className="flex-1 flex flex-col"></div>
 
 
-    <div className="min-h-screen bg-gray-100 flex flex-col" style={{ fontFamily: "Inter, sans-serif" }}>
-      {/* ── Header ── */}
-      <header className="flex items-center gap-4 px-5 py-3 bg-[#0d1117] sticky top-0 z-30 flex-wrap">
-        <span className="text-yellow-400 font-extrabold text-xl mr-2 whitespace-nowrap">
-          StoryOps WBS
-        </span>
+        <div className="min-h-screen bg-gray-100 flex flex-col" style={{ fontFamily: "Inter, sans-serif" }}>
+          {/* ── Header ── */}
+          <header className="flex items-center gap-4 px-5 py-3 bg-[#0d1117] sticky top-0 z-30 flex-wrap">
+            <span className="text-yellow-400 font-extrabold text-xl mr-2 whitespace-nowrap">
+              StoryOps WBS
+            </span>
 
-        {/* Plan selector */}
-        <div className="flex flex-col">
-          <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
-            Plan
-          </label>
-          <select
-            value={activePlanId ?? ""}
-            onChange={(e) => { setActivePlanId(e.target.value); setSelectedNodeId(null) }}
-            className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[160px]"
-          >
-            {!hasPlans && <option value="">No plans yet</option>}
-            {plans?.map((p) => (
-              <option key={p.id} value={p.id}>{p.client_name} — {p.wbs_name}</option>
-            ))}
-          </select>
-        </div>
+            {/* Plan selector */}
+            <div className="flex flex-col">
+              <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
+                Plan
+              </label>
+              <select
+                value={activePlanId ?? ""}
+                onChange={(e) => { setActivePlanId(e.target.value); setSelectedNodeId(null) }}
+                className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[160px]"
+              >
+                {!hasPlans && <option value="">No plans yet</option>}
+                {plans?.map((p) => (
+                  <option key={p.id} value={p.id}>{p.client_name} — {p.wbs_name}</option>
+                ))}
+              </select>
+            </div>
 
-        {/* Client name (editable) */}
-        <div className="flex flex-col">
-          <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
-            Client
-          </label>
-          <input
-            value={headerDraft.client_name ?? ""}
-            onChange={(e) => updateHeader("client_name", e.target.value)}
-            disabled={!plan}
-            className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px] disabled:opacity-40"
-          />
-        </div>
+            {/* Client name (editable) */}
+            <div className="flex flex-col">
+              <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
+                Client
+              </label>
+              <input
+                value={headerDraft.client_name ?? ""}
+                onChange={(e) => updateHeader("client_name", e.target.value)}
+                disabled={!plan}
+                className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[130px] disabled:opacity-40"
+              />
+            </div>
 
-        {/* WBS Name */}
-        <div className="flex flex-col">
-          <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
-            WBS Name
-          </label>
-          <input
-            value={headerDraft.wbs_name ?? ""}
-            onChange={(e) => updateHeader("wbs_name", e.target.value)}
-            disabled={!plan}
-            className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[170px] disabled:opacity-40"
-          />
-        </div>
+            {/* WBS Name */}
+            <div className="flex flex-col">
+              <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
+                WBS Name
+              </label>
+              <input
+                value={headerDraft.wbs_name ?? ""}
+                onChange={(e) => updateHeader("wbs_name", e.target.value)}
+                disabled={!plan}
+                className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[170px] disabled:opacity-40"
+              />
+            </div>
 
-        {/* Start Date */}
-        <div className="flex flex-col">
-          <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
-            Start Date
-          </label>
-          <input
-            type="date"
-            value={headerDraft.start_date ?? ""}
-            onChange={(e) => updateHeader("start_date", e.target.value)}
-            disabled={!plan}
-            className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
-          />
-        </div>
+            {/* Start Date */}
+            <div className="flex flex-col">
+              <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={headerDraft.start_date ?? ""}
+                onChange={(e) => updateHeader("start_date", e.target.value)}
+                disabled={!plan}
+                className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
+              />
+            </div>
 
-        {/* End Date */}
-        <div className="flex flex-col">
-          <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
-            End Date
-          </label>
-          <input
-            type="date"
-            value={headerDraft.end_date ?? ""}
-            onChange={(e) => updateHeader("end_date", e.target.value)}
-            disabled={!plan}
-            className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
-          />
-        </div>
+            {/* End Date */}
+            <div className="flex flex-col">
+              <label className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={headerDraft.end_date ?? ""}
+                onChange={(e) => updateHeader("end_date", e.target.value)}
+                disabled={!plan}
+                className="rounded border border-gray-600 bg-[#1a2233] text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
+              />
+            </div>
 
-        <div className="flex gap-3 ml-auto">
-          <button
-            onClick={() => setShowNewPlan(true)}
-            className="rounded border border-green-500 bg-[#1a2233] text-green-400 text-sm font-semibold px-3 py-2 hover:bg-[#243049] transition-colors whitespace-nowrap"
-          >
-            + New Plan
-          </button>
-          <button
-            onClick={handleAddWorkstream}
-            disabled={!plan}
-            className="rounded border border-gray-500 bg-[#1a2233] text-white text-sm font-semibold px-4 py-2 hover:bg-[#243049] transition-colors whitespace-nowrap disabled:opacity-40"
-          >
-            + Add Workstream
-          </button>
-          <button className="rounded bg-yellow-400 text-gray-900 text-sm font-bold px-4 py-2 hover:bg-yellow-300 transition-colors whitespace-nowrap">
-            Publish to Sprint
-          </button>
-        </div>
-      </header>
-
-      {/* ── Body ── */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Scrollable left content */}
-        <div className="flex-1 overflow-y-auto p-6 min-w-0">
-          {!hasPlans && !isLoading ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <p className="text-gray-500 text-lg mb-4">No WBS plans yet. Create your first one!</p>
+            <div className="flex gap-3 ml-auto">
               <button
                 onClick={() => setShowNewPlan(true)}
-                className="rounded-lg bg-blue-700 text-white font-semibold px-6 py-3 hover:bg-blue-800 transition-colors"
+                className="rounded border border-green-500 bg-[#1a2233] text-green-400 text-sm font-semibold px-3 py-2 hover:bg-[#243049] transition-colors whitespace-nowrap"
               >
-                + Create New Plan
+                + New Plan
               </button>
-            </div>
-          ) : isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-gray-400 text-sm">Loading plan…</div>
-            </div>
-          ) : plan ? (
-            <>
-              <SummaryCards workstreams={workstreams} allNodes={allNodes} />
-
-              {/* Title bar */}
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">
-                    {plan.client_name} — {plan.wbs_name}
-                  </h1>
-                  <div className="text-sm text-gray-500 mt-0.5">
-                    {plan.start_date ?? "—"} to {plan.end_date ?? "—"} • Monthly WBS
-                  </div>
-                </div>
-                <button
-                  onClick={handleAddWorkstream}
-                  className="rounded-lg bg-blue-700 text-white text-sm font-semibold px-4 py-2 hover:bg-blue-800 transition-colors whitespace-nowrap"
-                >
-                  + Add Dynamic Workstream
-                </button>
-              </div>
-
-              {/* Workstreams */}
-              {workstreams.map((ws) => (
-                <WorkstreamBlock
-                  key={ws.id}
-                  ws={ws}
-                  allNodes={allNodes}
-                  selectedId={selectedNodeId}
-                  planId={activePlanId!}
-                  onSelect={setSelectedNodeId}
-                  onRefresh={() => mutatePlan()}
-                />
-              ))}
-
-              {/* Create New Workstream CTA */}
               <button
                 onClick={handleAddWorkstream}
-                className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-white py-5 text-sm font-semibold text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                disabled={!plan}
+                className="rounded border border-gray-500 bg-[#1a2233] text-white text-sm font-semibold px-4 py-2 hover:bg-[#243049] transition-colors whitespace-nowrap disabled:opacity-40"
               >
-                + Create New Workstream
+                + Add Workstream
               </button>
-            </>
-          ) : null}
-        </div>
+              <button className="rounded bg-yellow-400 text-gray-900 text-sm font-bold px-4 py-2 hover:bg-yellow-300 transition-colors whitespace-nowrap">
+                Publish to Sprint
+              </button>
+            </div>
+          </header>
 
-        {/* Fixed right panel */}
-        <div className="w-72 flex-shrink-0 border-l border-gray-200 overflow-y-auto bg-white">
-          {plan && (
-            <RightPanel
-              selectedNode={selectedNode}
-              users={users ?? []}
-              workstreams={workstreams}
-              allNodes={allNodes}
-              planId={activePlanId!}
-              clientId={plan.client_id ?? null}
-              onRefresh={() => mutatePlan()}
-              onDeselect={() => setSelectedNodeId(null)}
+          {/* ── Body ── */}
+          <div className="flex flex-1 overflow-hidden">
+            {/* Scrollable left content */}
+            <div className="flex-1 overflow-y-auto p-6 min-w-0">
+              {!hasPlans && !isLoading ? (
+                <div className="flex flex-col items-center justify-center h-64 text-center">
+                  <p className="text-gray-500 text-lg mb-4">No WBS plans yet. Create your first one!</p>
+                  <button
+                    onClick={() => setShowNewPlan(true)}
+                    className="rounded-lg bg-blue-700 text-white font-semibold px-6 py-3 hover:bg-blue-800 transition-colors"
+                  >
+                    + Create New Plan
+                  </button>
+                </div>
+              ) : isLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-gray-400 text-sm">Loading plan…</div>
+                </div>
+              ) : plan ? (
+                <>
+                  <SummaryCards workstreams={workstreams} allNodes={allNodes} />
+
+                  {/* Title bar */}
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <h1 className="text-xl font-bold text-gray-900">
+                        {plan.client_name} — {plan.wbs_name}
+                      </h1>
+                      <div className="text-sm text-gray-500 mt-0.5">
+                        {plan.start_date ?? "—"} to {plan.end_date ?? "—"} • Monthly WBS
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleAddWorkstream}
+                      className="rounded-lg bg-blue-700 text-white text-sm font-semibold px-4 py-2 hover:bg-blue-800 transition-colors whitespace-nowrap"
+                    >
+                      + Add Dynamic Workstream
+                    </button>
+                  </div>
+
+                  {/* Workstreams */}
+                  {workstreams.map((ws) => (
+                    <WorkstreamBlock
+                      key={ws.id}
+                      ws={ws}
+                      allNodes={allNodes}
+                      selectedId={selectedNodeId}
+                      planId={activePlanId!}
+                      onSelect={setSelectedNodeId}
+                      onRefresh={() => mutatePlan()}
+                    />
+                  ))}
+
+                  {/* Create New Workstream CTA */}
+                  <button
+                    onClick={handleAddWorkstream}
+                    className="w-full rounded-2xl border-2 border-dashed border-gray-300 bg-white py-5 text-sm font-semibold text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                  >
+                    + Create New Workstream
+                  </button>
+                </>
+              ) : null}
+            </div>
+
+            {/* Fixed right panel */}
+            <div className="w-72 flex-shrink-0 border-l border-gray-200 overflow-y-auto bg-white">
+              {plan && (
+                <RightPanel
+                  selectedNode={selectedNode}
+                  users={users ?? []}
+                  workstreams={workstreams}
+                  allNodes={allNodes}
+                  planId={activePlanId!}
+                  clientId={plan.client_id ?? null}
+                  onRefresh={() => mutatePlan()}
+                  onDeselect={() => setSelectedNodeId(null)}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* New Plan Modal */}
+          {showNewPlan && (
+            <NewPlanModal
+              clients={clients ?? []}
+              onClose={() => setShowNewPlan(false)}
+              onCreated={handlePlanCreated}
             />
           )}
         </div>
-      </div>
-
-      {/* New Plan Modal */}
-      {showNewPlan && (
-        <NewPlanModal
-          clients={clients ?? []}
-          onClose={() => setShowNewPlan(false)}
-          onCreated={handlePlanCreated}
-        />
-      )}
-    </div>
-  )
+        )
 }
