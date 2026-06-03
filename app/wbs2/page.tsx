@@ -38,6 +38,7 @@ interface DbWorkstream {
 
 interface DbPlan {
   id: string
+  client_id: string | null
   client_name: string
   wbs_name: string
   start_date: string | null
@@ -132,6 +133,7 @@ function RightPanel({
   workstreams,
   allNodes,
   planId,
+  clientId,
   onRefresh,
   onDeselect,
 }: {
@@ -140,11 +142,21 @@ function RightPanel({
   workstreams: DbWorkstream[]
   allNodes: DbNode[]
   planId: string
+  clientId: string | null
   onRefresh: () => void
   onDeselect: () => void
 }) {
   const [form, setForm] = useState<Partial<DbNode>>({})
   const [saving, setSaving] = useState(false)
+
+  // Fetch sprints for the current client
+  const { data: sprintsData = [] } = useSWR<{ id: string; name: string }[]>(
+    clientId ? `/api/sprints?clientId=${clientId}` : null,
+    (url: string) =>
+      fetch(url)
+        .then((r) => r.json())
+        .then((d) => (Array.isArray(d?.sprints) ? d.sprints : []))
+  )
 
   // Reset form when selected node changes
   useEffect(() => {
@@ -343,12 +355,16 @@ function RightPanel({
 
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">Sprint</label>
-              <input
+              <select
                 className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.sprint ?? ""}
+                value={form.sprint ?? "Unassigned"}
                 onChange={(e) => set("sprint", e.target.value)}
-                placeholder="e.g. Sprint_June_001"
-              />
+              >
+                <option value="Unassigned">Unassigned</option>
+                {sprintsData.map((s) => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -1088,6 +1104,7 @@ export default function WBS2Page() {
               workstreams={workstreams}
               allNodes={allNodes}
               planId={activePlanId!}
+              clientId={plan.client_id ?? null}
               onRefresh={() => mutatePlan()}
               onDeselect={() => setSelectedNodeId(null)}
             />
