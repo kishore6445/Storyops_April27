@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-import Workstream from "@/components/Workstream"
+import Workstream from "./_components/Workstream"
 
 import SummaryCards from "@/components/SummaryCards"
 
