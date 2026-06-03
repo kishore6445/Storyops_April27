@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import useSWR from "swr"
 import { statusBadgeClass } from "./utils"
+import { Sidebar } from "@/components/sidebar"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
