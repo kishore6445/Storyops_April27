@@ -6,7 +6,7 @@ import Workstream from "./_components/Workstream"
 
 import SummaryCards from "./_components/SummaryCards"
 
-import { initialWorkstreams } from "@/data/initialData"
+import { initialWorkstreams } from "./data/initialData"
 
 export default function Page() {
   const [workstreams, setWorkstreams] =
