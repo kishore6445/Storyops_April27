@@ -360,7 +360,7 @@ function RightPanel({
               >
                 <option value="Unassigned">Unassigned</option>
                 {sprints.map((s) => (
-                  <option key={s.id} value={s.}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </div>
