@@ -4,7 +4,7 @@ import { useState } from "react"
 
 import Workstream from "./_components/Workstream"
 
-import SummaryCards from "@/components/SummaryCards"
+import SummaryCards from "./_components/SummaryCards"
 
 import { initialWorkstreams } from "@/data/initialData"
 
