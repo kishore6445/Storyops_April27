@@ -1,6 +1,6 @@
 "use client"
 
-import { statusClass } from "@/lib/wbs-utils"
+import { statusClass } from "../lib/wbs-utils"
 
 export default function WBSNode({
   node,
