@@ -74,10 +74,22 @@ export function MyTasksToday() {
   const { data: currentUserProfile } = useSWR("/api/user/profile", fetcher, SWR_OPTS)
   const { data: individualSprintData } = useSWR("/api/individual-sprints", fetcher, SWR_OPTS)
 
+  // Fetch WBS2 tasks assigned to current user
+  const { data: wbs2TasksData = [] } = useSWR<Task[]>(
+    currentUserProfile?.fullName ? `/api/wbs2/nodes/my-tasks?assignee=${encodeURIComponent(currentUserProfile.fullName)}` : null,
+    (url: string) =>
+      fetch(url)
+        .then((r) => r.json())
+        .then((d) => (Array.isArray(d) ? d : []))
+  )
+
   const tasks: Task[] = (data?.tasks || []).map((task: Task) => ({
     ...task,
     status: task.status || "todo",
   }))
+
+  // Merge WBS2 tasks into the task list
+  const allTasks = [...tasks, ...wbs2TasksData]
 
   // State for task owner's subtasks that should appear in kanban
   const [ownedTaskSubtasks, setOwnedTaskSubtasks] = useState<any[]>([])
@@ -239,20 +251,20 @@ export function MyTasksToday() {
   }
   
   const displayTasks = sprintFilter === "current-sprint"
-    ? tasks.filter(t =>
+    ? allTasks.filter(t =>
         !t.dueDate ||                // Tasks with no due date always shown in current view
         sprintTaskIds.has(t.id) ||   // Explicitly added to sprint
         isOverdue(t.dueDate) ||      // Overdue tasks
         isInCurrentMonth(t.dueDate)  // Due this month
       )
     : sprintFilter === "backlog"
-    ? tasks.filter(t =>
+    ? allTasks.filter(t =>
         t.dueDate &&                 // Must have a due date
         !sprintTaskIds.has(t.id) &&  // Not in sprint
         !isOverdue(t.dueDate) &&     // Not overdue
         !isInCurrentMonth(t.dueDate) // Not due this month
       )
-    : tasks
+    : allTasks
 
   const kanbanTasks = [...displayTasks, ...ownedTaskSubtasks]
 
@@ -295,17 +307,17 @@ export function MyTasksToday() {
     }
   }
 
-  // Calculate power metrics
-  const totalTasks = tasks.length
-  const completedTasks = tasks.filter((t) => t.completed).length
+  // Calculate power metrics (using allTasks to include WBS2 tasks)
+  const totalTasks = allTasks.length
+  const completedTasks = allTasks.filter((t) => t.completed).length
   const pendingTasks = totalTasks - completedTasks
-  const highPriorityTasks = tasks.filter((t) => t.priority === "high" && !t.completed).length
+  const highPriorityTasks = allTasks.filter((t) => t.priority === "high" && !t.completed).length
   const today = new Date().toISOString().split("T")[0]
-  const dueTodayTasks = tasks.filter((t) => t.dueDate === today && !t.completed).length
-  const overdueTasks = tasks.filter((t) => t.dueDate && t.dueDate < today && !t.completed).length
+  const dueTodayTasks = allTasks.filter((t) => t.dueDate === today && !t.completed).length
+  const overdueTasks = allTasks.filter((t) => t.dueDate && t.dueDate < today && !t.completed).length
 
   // Filter tasks
-  const filteredTasks = tasks.filter((task) => {
+  const filteredTasks = allTasks.filter((task) => {
     if (filterPriority !== "all" && task.priority !== filterPriority) return false
     if (selectedClient !== "all" && task.clientName !== clients.find((c) => c.id === selectedClient)?.name) return false
     return true
@@ -382,10 +394,10 @@ export function MyTasksToday() {
   }
 
   const handleTaskStatusChange = async (taskId: string, newStatus: string) => {
-    const task = tasks.find((t) => t.id === taskId)
+    const task = allTasks.find((t) => t.id === taskId)
     if (!task) return
 
-    console.log("[v0] handleTaskStatusChange called:", { taskId, newStatus, taskTitle: task.title })
+    console.log("[v0] handleTaskStatusChange called:", { taskId, newStatus, taskTitle: task.title, source: task.source_table })
 
     // Optimistic update
     mutate(
@@ -399,19 +411,37 @@ export function MyTasksToday() {
 
     try {
       const token = localStorage.getItem("sessionToken")
-      console.log("[v0] Sending task update to API:", { taskId, status: newStatus })
-      const response = await fetch("/api/tasks", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ taskId, status: newStatus }),
-      })
-      console.log("[v0] Task update API response status:", response.status)
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("[v0] Task update API error:", errorData)
+      console.log("[v0] Sending task update to API:", { taskId, status: newStatus, source: task.source_table })
+      
+      // If it's a WBS2 task, use the WBS2 API
+      if (task.source_table === 'wbs2_nodes') {
+        const response = await fetch("/api/wbs2/nodes/update-status", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ nodeId: taskId, status: newStatus }),
+        })
+        console.log("[v0] WBS2 task update API response status:", response.status)
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error("[v0] WBS2 task update API error:", errorData)
+        }
+      } else {
+        // Regular task
+        const response = await fetch("/api/tasks", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ taskId, status: newStatus }),
+        })
+        console.log("[v0] Task update API response status:", response.status)
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error("[v0] Task update API error:", errorData)
+        }
       }
       mutate()
     } catch (error) {
