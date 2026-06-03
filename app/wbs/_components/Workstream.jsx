@@ -1,7 +1,7 @@
 "use client"
 
 import WBSNode from "./WBSNode"
-import { pct } from "@/lib/wbs-utils"
+import { pct } from "../lib/wbs-utils"
 
 export default function Workstream({
   workstream,
