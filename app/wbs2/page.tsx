@@ -150,13 +150,14 @@ function RightPanel({
   const [saving, setSaving] = useState(false)
 
   // Fetch sprints for the current client
-  const { data: sprintsData = [] } = useSWR<{ id: string; name: string }[]>(
+  const { data: sprintsData = [] } = useSWR<any>(
     clientId ? `/api/sprints?clientId=${clientId}` : null,
-    (url: string) =>
-      fetch(url)
-        .then((r) => r.json())
-        .then((d) => (Array.isArray(d?.sprints) ? d.sprints : []))
+    fetcher
   )
+
+  // Extract sprints array and log for debugging
+  const sprints = Array.isArray(sprintsData?.sprints) ? sprintsData.sprints : []
+  console.log("[v0] clientId:", clientId, "sprints response:", sprintsData, "parsed sprints:", sprints)
 
   // Reset form when selected node changes
   useEffect(() => {
@@ -361,7 +362,7 @@ function RightPanel({
                 onChange={(e) => set("sprint", e.target.value)}
               >
                 <option value="Unassigned">Unassigned</option>
-                {sprintsData.map((s) => (
+                {sprints.map((s) => (
                   <option key={s.id} value={s.name}>{s.name}</option>
                 ))}
               </select>
@@ -849,7 +850,7 @@ function NewPlanModal({
   )
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main Page ───────��─────────────────────────────────────────────────────────
 
 export default function WBS2Page() {
   const [activePlanId, setActivePlanId] = useState<string | null>(null)
