@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 export interface Task {
   id: string
   taskId?: string
-  source_table?: "tasks" | "sprint_tasks"
+  source_table?: "tasks" | "sprint_tasks" | "wbs2_nodes"
   title: string
   description?: string
   completed: boolean
@@ -75,8 +75,10 @@ export function MyTasksToday() {
   const { data: individualSprintData } = useSWR("/api/individual-sprints", fetcher, SWR_OPTS)
 
   // Fetch WBS2 tasks assigned to current user
+  // Profile returns full_name (not fullName)
+  const wbs2Assignee = currentUserProfile?.full_name || currentUserProfile?.display_name || null
   const { data: wbs2TasksData = [] } = useSWR<Task[]>(
-    currentUserProfile?.fullName ? `/api/wbs2/nodes/my-tasks?assignee=${encodeURIComponent(currentUserProfile.fullName)}` : null,
+    wbs2Assignee ? `/api/wbs2/nodes/my-tasks?assignee=${encodeURIComponent(wbs2Assignee)}` : null,
     (url: string) =>
       fetch(url)
         .then((r) => r.json())
