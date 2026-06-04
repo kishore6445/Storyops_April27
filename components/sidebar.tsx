@@ -70,6 +70,12 @@ const primaryNav = [
 
 const myTasksSubmenu = [
   {
+    id: "client-tasks",
+    name: "Client Tasks",
+    icon: Briefcase,
+    href: "/client-tasks",
+  },
+  {
     id: "daily-work",
     name: "Daily Work",
     icon: Clock,
