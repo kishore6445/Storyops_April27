@@ -423,7 +423,7 @@ export function TaskKanban({
                               {(task as any).source_table === 'wbs2_nodes' && (
                                 <select
                                   className="w-full text-xs rounded border border-gray-200 px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-                                  value={column.id}
+                                  value={task.status}
                                   onChange={(e) => {
                                     e.stopPropagation()
                                     onTaskStatusChange?.(task.id, e.target.value)

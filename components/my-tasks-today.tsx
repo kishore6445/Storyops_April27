@@ -589,6 +589,31 @@ console.log("formData entries", Array.from(fileData.entries()))
   }
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
+    const task = allTasks.find((t) => t.id === taskId)
+    if (!task) return
+
+    if ((task as any).source_table === "wbs2_nodes") {
+      // Optimistic update for WBS2 task via local state override
+      setWbs2Statuses((prev) => ({ ...prev, [taskId]: newStatus }))
+      try {
+        const res = await fetch("/api/wbs2/nodes/update-status", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nodeId: taskId, status: newStatus }),
+        })
+        if (!res.ok) {
+          // Revert on failure
+          setWbs2Statuses((prev) => ({ ...prev, [taskId]: task.status }))
+        } else {
+          mutateWbs2()
+        }
+      } catch {
+        setWbs2Statuses((prev) => ({ ...prev, [taskId]: task.status }))
+      }
+      return
+    }
+
+    // Regular task — existing logic untouched
     const token = localStorage.getItem("sessionToken")
 
     // Optimistically update local task state so Kanban columns refresh immediately
@@ -623,16 +648,13 @@ console.log("formData entries", Array.from(fileData.entries()))
       if (!response.ok) {
         const errorData = await response.json()
         console.error("[v0] Error updating task status:", errorData.error || response.statusText)
-        // Revert optimistic update when backend update fails
         mutate()
         return
       }
 
-      // Refresh tasks
       mutate()
     } catch (error) {
       console.error("[v0] Error changing task status:", error)
-      // Revert optimistic update when request throws
       mutate()
     }
   }
