@@ -456,14 +456,14 @@ export default function ClientTasksPage() {
               </div>
             </div>
             <button
-              onClick={() => {
+              onClick={async () => {
                 const text = [
                   `Task ID: ${createdTaskInfo.task_id}`,
                   `Title: ${createdTaskInfo.title}`,
                   createdTaskInfo.description ? `Description: ${createdTaskInfo.description}` : null,
                   `Assigned To: ${createdTaskInfo.assignedToName}`,
                 ].filter(Boolean).join("\n")
-                navigator.clipboard.writeText(text).then(() => {
+               await navigator.clipboard.writeText(text).then(() => {
                   setCopiedAll(true)
                   setTimeout(() => setCopiedAll(false), 2000)
                 })
