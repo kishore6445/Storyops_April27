@@ -23,7 +23,7 @@ export function ManageClientsSection() {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
-  const [editForm, setEditForm] = useState({ name: "", description: "" })
+  const [editForm, setEditForm] = useState({ name: "", description: "", userId: "" })
   const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export function ManageClientsSection() {
   }
 
   const handleOpenEdit = (client: Client) => {
-    setEditForm({ name: client.name, description: client.description || "" })
+    setEditForm({ name: client.name, description: client.description || "", userId: (client as any).user_id || "" })
     setEditingClient(client)
   }
 
@@ -118,7 +118,11 @@ export function ManageClientsSection() {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ name: editForm.name.trim(), description: editForm.description.trim() }),
+        body: JSON.stringify({
+          name: editForm.name.trim(),
+          description: editForm.description.trim(),
+          ...(editForm.userId ? { user_id: editForm.userId } : {}),
+        }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -274,6 +278,23 @@ export function ManageClientsSection() {
                   placeholder="Brief description of the client"
                   className="w-full px-3 py-2 border border-[#D1D1D6] rounded-lg focus:outline-none focus:border-[#0071E3] text-sm resize-none h-24"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1D1D1F] mb-2">
+                  Client User <span className="text-[#86868B] font-normal">(optional)</span>
+                </label>
+                <select
+                  value={editForm.userId}
+                  onChange={(e) => setEditForm({ ...editForm, userId: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#D1D1D6] rounded-lg focus:outline-none focus:border-[#0071E3] text-sm"
+                >
+                  <option value="">No user linked</option>
+                  {clientUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.email})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex gap-3 pt-2 border-t border-[#E5E5E7]">
                 <button

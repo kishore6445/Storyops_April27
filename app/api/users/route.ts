@@ -70,13 +70,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (role === 'client' && !clientName) {
-      return NextResponse.json(
-        { error: "Client organization name is required for client users" },
-        { status: 400 }
-      )
-    }
-
     const supabaseAdmin = getSupabaseAdminClient()
 
     // Create user in Supabase Auth first (using admin to bypass email confirmation)
