@@ -18,6 +18,7 @@ import {
   Linkedin,
   Youtube,
   ChevronRight,
+  ChevronDown,
   X,
   Check,
 } from "lucide-react"
@@ -110,7 +111,10 @@ function ViewAllModal({ title, items, renderItem, onClose }: {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function ClientPortalPage() {
-  const { data, isLoading } = useSWR("/api/client-portal", fetcher, { revalidateOnFocus: false })
+  const [selectedSprintId, setSelectedSprintId] = useState<string>("") // empty = auto
+  const [sprintDropdownOpen, setSprintDropdownOpen] = useState(false)
+  const swrKey = selectedSprintId ? `/api/client-portal?sprintId=${selectedSprintId}` : "/api/client-portal"
+  const { data, isLoading } = useSWR(swrKey, fetcher, { revalidateOnFocus: false })
   const [viewAll, setViewAll] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
@@ -144,6 +148,7 @@ export default function ClientPortalPage() {
   const {
     client,
     userName,
+    allSprints       = [],
     currentSprint,
     nextSprint,
     completedTasks   = [],
@@ -287,6 +292,54 @@ export default function ClientPortalPage() {
                   Welcome, {client?.name || userName}! <span>👋</span>
                 </h1>
                 <p className="text-[13px] text-[#86868B] mt-0.5">{"Here's what's happening with your project."}</p>
+                {/* Sprint selector */}
+                {allSprints.length > 0 && (
+                  <div className="relative mt-3 inline-block print:hidden">
+                    <button
+                      onClick={() => setSprintDropdownOpen((o) => !o)}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#D1D1D6] bg-white text-[13px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
+                    >
+                      <Calendar className="w-3.5 h-3.5 text-[#007AFF]" />
+                      {selectedSprintId === "all"
+                        ? "All Sprints"
+                        : selectedSprintId
+                          ? (allSprints.find((s: any) => s.id === selectedSprintId)?.name || "Select Sprint")
+                          : (currentSprint?.name || "Select Sprint")}
+                      <ChevronDown className="w-3.5 h-3.5 text-[#86868B]" />
+                    </button>
+                    {sprintDropdownOpen && (
+                      <div
+                        className="absolute left-0 top-full mt-1 w-64 bg-white rounded-xl border border-[#E5E5E7] shadow-lg z-20 overflow-hidden"
+                        onMouseLeave={() => setSprintDropdownOpen(false)}
+                      >
+                        <button
+                          onClick={() => { setSelectedSprintId("all"); setSprintDropdownOpen(false) }}
+                          className={cn(
+                            "w-full text-left px-4 py-2.5 text-[13px] hover:bg-[#F5F5F7] transition-colors border-b border-[#F5F5F7]",
+                            selectedSprintId === "all" ? "font-semibold text-[#007AFF]" : "text-[#1D1D1F]"
+                          )}
+                        >
+                          All Sprints
+                        </button>
+                        {allSprints.map((s: any) => (
+                          <button
+                            key={s.id}
+                            onClick={() => { setSelectedSprintId(s.id); setSprintDropdownOpen(false) }}
+                            className={cn(
+                              "w-full text-left px-4 py-2.5 text-[13px] hover:bg-[#F5F5F7] transition-colors",
+                              selectedSprintId === s.id || (!selectedSprintId && s.id === currentSprint?.id)
+                                ? "font-semibold text-[#007AFF]"
+                                : "text-[#1D1D1F]"
+                            )}
+                          >
+                            <div className="font-medium">{s.name}</div>
+                            <div className="text-[11px] text-[#86868B]">{fmtShort(s.startDate)} – {fmtShort(s.endDate)}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 print:hidden">
                 <button
