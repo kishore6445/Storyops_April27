@@ -80,12 +80,18 @@ export async function GET(request: Request) {
 
     const completedTasks  = sprintTasks.filter((t) => t.status === "done")
     const inProgressTasks = sprintTasks.filter((t) => t.status === "in_progress")
+    const inReviewTasks   = sprintTasks.filter((t) => t.status === "in_review")
     const pendingTasks    = sprintTasks.filter((t) => t.status === "todo")
     const delayedTasks    = sprintTasks.filter((t) => {
       const deadline = t.promised_date || t.due_date
       if (!deadline) return false
       return new Date(deadline) < today && t.status !== "done"
     })
+    // Needs attention = past-due + in_review
+    const attentionTasks = [
+      ...delayedTasks.map((t: any) => ({ ...t, reason: "Past due date" })),
+      ...inReviewTasks.map((t: any) => ({ ...t, reason: "Awaiting content approval" })),
+    ]
 
     const totalTasks = sprintTasks.length
     const completionPct = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0
@@ -106,14 +112,14 @@ export async function GET(request: Request) {
       .order("date", { ascending: false })
       .limit(5)
 
-    // ── Deliverables (task files) ─────────────────────────────────────────
+    // ── Deliverables (task files from done tasks only) ────────────────────
     let deliverables: any[] = []
-    if (sprintTasks.length > 0) {
-      const sprintTaskIds = sprintTasks.map((t) => t.id)
+    if (completedTasks.length > 0) {
+      const doneTaskIds = completedTasks.map((t: any) => t.id)
       const { data: files } = await supabase
         .from("task_files")
         .select("id, task_id, name, url, mime_type, uploaded_at, tasks(title, status)")
-        .in("task_id", sprintTaskIds)
+        .in("task_id", doneTaskIds)
         .order("uploaded_at", { ascending: false })
         .limit(8)
 
@@ -183,9 +189,10 @@ export async function GET(request: Request) {
         endDate: nextSprint.end_date,
         tasks: nextSprintTasks.map((t) => ({ id: t.id, title: t.title })),
       } : null,
-      completedTasks: completedTasks.map((t) => ({ id: t.id, title: t.title })),
-      inProgressTasks: inProgressTasks.map((t) => ({ id: t.id, title: t.title })),
-      delayedTasks: delayedTasks.map((t) => ({ id: t.id, title: t.title })),
+      completedTasks: completedTasks.map((t: any) => ({ id: t.id, title: t.title })),
+      inProgressTasks: inProgressTasks.map((t: any) => ({ id: t.id, title: t.title })),
+      delayedTasks: delayedTasks.map((t: any) => ({ id: t.id, title: t.title })),
+      attentionTasks: attentionTasks.map((t: any) => ({ id: t.id, title: t.title, reason: t.reason })),
       meetings: (meetingsData || []).map((m: any) => ({
         id: m.id,
         title: m.title || "Team Meeting",
