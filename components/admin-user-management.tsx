@@ -117,11 +117,6 @@ export function AdminUserManagement() {
       return
     }
 
-    if (formData.role === "client" && !formData.clientName) {
-      alert("Client organization name is required for client users")
-      return
-    }
-
     try {
       const token = localStorage.getItem('sessionToken')
       const response = await fetch('/api/users', {
@@ -511,11 +506,16 @@ export function AdminUserManagement() {
                 </select>
               </div>
 
-              {/* Show client organization fields if role is client */}
+              {/* Show client organization fields if role is client (optional) */}
               {formData.role === "client" && (
                 <>
+                  <p className="text-xs text-[#86868B]">
+                    Organization fields are optional. You can link this user to a client organization later via Manage Clients.
+                  </p>
                   <div>
-                    <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Client Organization Name</label>
+                    <label className="text-sm font-medium text-[#1D1D1F] block mb-1">
+                      Client Organization Name <span className="text-[#86868B] font-normal">(optional)</span>
+                    </label>
                     <input
                       type="text"
                       placeholder="Enter client organization name"
@@ -526,7 +526,9 @@ export function AdminUserManagement() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Organization Description</label>
+                    <label className="text-sm font-medium text-[#1D1D1F] block mb-1">
+                      Organization Description <span className="text-[#86868B] font-normal">(optional)</span>
+                    </label>
                     <textarea
                       placeholder="Enter organization description"
                       value={formData.clientDescription}

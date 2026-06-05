@@ -22,6 +22,9 @@ export function ManageClientsSection() {
   const [clientUsers, setClientUsers] = useState<ClientUser[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [editForm, setEditForm] = useState({ name: "", description: "" })
+  const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
     fetchClients()
@@ -92,6 +95,43 @@ export function ManageClientsSection() {
     } catch (error) {
       console.error("[v0] Failed to create client:", error)
       alert("Failed to create client")
+    }
+  }
+
+  const handleOpenEdit = (client: Client) => {
+    setEditForm({ name: client.name, description: client.description || "" })
+    setEditingClient(client)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingClient) return
+    if (!editForm.name.trim()) {
+      alert("Client name is required")
+      return
+    }
+    setEditSaving(true)
+    try {
+      const token = localStorage.getItem('sessionToken')
+      const response = await fetch(`/api/clients/${editingClient.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ name: editForm.name.trim(), description: editForm.description.trim() }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        alert(data.error || "Failed to update client")
+        return
+      }
+      await fetchClients()
+      setEditingClient(null)
+    } catch (error) {
+      console.error("[v0] Failed to update client:", error)
+      alert("Failed to update client")
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -174,6 +214,7 @@ export function ManageClientsSection() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => handleOpenEdit(client)}
                     className="p-2 text-[#86868B] hover:bg-[#F5F5F7] rounded-lg transition-colors"
                     title="Edit client"
                   >
@@ -200,6 +241,61 @@ export function ManageClientsSection() {
         onSubmit={handleAddClient}
         clientUsers={clientUsers}
       />
+
+      {/* Edit Client Modal */}
+      {editingClient && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E7]">
+              <h2 className="text-lg font-semibold text-[#1D1D1F]">Edit Client</h2>
+              <button
+                onClick={() => setEditingClient(null)}
+                className="p-1 hover:bg-[#F5F5F7] rounded-lg transition-colors"
+              >
+                <span className="text-[#86868B] text-xl leading-none">&times;</span>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#1D1D1F] mb-2">Client Organization Name</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="Enter organization name"
+                  className="w-full px-3 py-2 border border-[#D1D1D6] rounded-lg focus:outline-none focus:border-[#0071E3] text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1D1D1F] mb-2">Description</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  placeholder="Brief description of the client"
+                  className="w-full px-3 py-2 border border-[#D1D1D6] rounded-lg focus:outline-none focus:border-[#0071E3] text-sm resize-none h-24"
+                />
+              </div>
+              <div className="flex gap-3 pt-2 border-t border-[#E5E5E7]">
+                <button
+                  type="button"
+                  onClick={() => setEditingClient(null)}
+                  className="flex-1 px-4 py-2 rounded-lg border border-[#D1D1D6] text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={editSaving}
+                  className="flex-1 px-4 py-2 rounded-lg bg-[#0071E3] text-white hover:bg-[#0077ED] transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  {editSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
