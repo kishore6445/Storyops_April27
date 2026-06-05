@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Circle, Calendar, Zap, Clock, AlertCircle, Edit2, X, Loader2, LayoutGrid, Plus, User, Users, Paperclip } from "lucide-react"
+import { CheckCircle2, Circle, Calendar, Zap, Clock, AlertCircle, Edit2, X, Loader2, LayoutGrid, Plus, User, Users, Paperclip, Copy, Check as CheckIcon } from "lucide-react"
 import useSWR from "swr"
 import { TaskKanban } from "./task-kanban"
 import { SprintToolbarUnified } from "./sprint-toolbar-unified"
@@ -213,9 +213,15 @@ export function MyTasksToday() {
     promisedDate: "",
     promisedTime: "",
     assigneeId: "",
-    attachment: null as File | null,
-    attachmentName: "",
+    attachments: [] as File[],
   })
+  // Subtasks for the create modal
+  const [modalSubtasks, setModalSubtasks] = useState<Array<{ title: string; dueDate: string; assigneeId: string }>>([])
+  const [showAddSubtaskRow, setShowAddSubtaskRow] = useState(false)
+  const [newSubtaskRow, setNewSubtaskRow] = useState({ title: "", dueDate: "", assigneeId: "" })
+  // Success popup after task creation
+  const [createdTaskInfo, setCreatedTaskInfo] = useState<{ task_id: string; title: string; description: string; assignedToName: string } | null>(null)
+  const [copiedAll, setCopiedAll] = useState(false)
 
   const clients = clientsData?.clients || []
   const sprints = sprintsData?.sprints || []
@@ -464,99 +470,71 @@ export function MyTasksToday() {
     setIsCreating(true)
     const token = localStorage.getItem("sessionToken")
     try {
-      console.log("[v0] Creating task with formData:", JSON.stringify(createFormData))
+      const { attachments, ...bodyData } = createFormData
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(createFormData),
+        body: JSON.stringify(bodyData),
       })
       const data = await res.json()
-      console.log("[v0] Create task response:", res.status, JSON.stringify(data))
       if (!res.ok) {
-        console.error("[v0] Task creation failed:", data)
         alert(`Task creation failed: ${data.error || "Unknown error"}`)
         return
       }
+
       const normalizeTaskId = (value: unknown): string => {
         if (value == null) return ""
-
-        if (typeof value === "string" || typeof value === "number" || typeof value === "bigint") {
-          return String(value).trim()
-        }
-
+        if (typeof value === "string" || typeof value === "number" || typeof value === "bigint") return String(value).trim()
         if (Array.isArray(value)) {
-          for (const entry of value) {
-            const normalized = normalizeTaskId(entry)
-            if (normalized) return normalized
-          }
+          for (const entry of value) { const n = normalizeTaskId(entry); if (n) return n }
           return ""
         }
-
         if (typeof value === "object") {
-          const maybeRecord = value as Record<string, unknown>
-          return (
-            normalizeTaskId(maybeRecord.id) ||
-            normalizeTaskId(maybeRecord.task_id) ||
-            normalizeTaskId(maybeRecord.taskId) ||
-            ""
-          )
+          const r = value as Record<string, unknown>
+          return normalizeTaskId(r.id) || normalizeTaskId(r.task_id) || normalizeTaskId(r.taskId) || ""
         }
-
         return ""
       }
 
-      const createdTaskId = normalizeTaskId(
-        data?.task ?? data?.id ?? data?.taskId ?? null
-      )
-      console.log("[v0] Normalized created task ID:", createdTaskId)
+      const createdTaskId = normalizeTaskId(data?.task ?? data?.id ?? data?.taskId ?? null)
+      const createdTaskPublicId = normalizeTaskId(data?.task?.task_id ?? data?.task_id ?? null)
       const hasValidTaskId = Boolean(createdTaskId && createdTaskId !== "undefined" && createdTaskId !== "null")
-      console.log("[v0] Valid task ID check:", { createdTaskId, hasValidTaskId })
-      // Upload selected attachment after task is created.
-      // debugger;
-      if (createFormData.attachment) {
-        if (!hasValidTaskId) {
-          console.error("[v0] Missing valid task ID in create response:", data)
-          alert("Task created, but attachment could not be uploaded because task ID was missing")
-        } else {
-        const fileData = new FormData()
-        fileData.append("file", createFormData.attachment)
 
-       console.log(fileData)
-        console.log("createdTaskId", createdTaskId)
-console.log("selected attachment", createFormData.attachment)
-console.log("formData file", fileData.get("file"))
-console.log("formData entries", Array.from(fileData.entries()))
-       // debugger;
-
- console.log("fileData is", fileData);
-
-
-// console.log("[v0] saving file metadata:", {
-//   task_id: taskId,
-//   name: file.name,
-//   url: urlData.publicUrl,
-//   size: file.size,
-//   mime_type: file.type,
-//   uploaded_by: session.id,
-// })
-        const uploadRes = await fetch(`/api/tasks/${createdTaskId}/files`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: fileData,
-        })
-
-        if (!uploadRes.ok) {
-          const uploadError = await uploadRes.json().catch(() => ({}))
-          console.error("[v0] Task attachment upload failed:", uploadError)
-          alert(uploadError?.error || "Task created, but attachment upload failed")
-        }
+      // Upload multiple attachments
+      if (attachments.length > 0 && hasValidTaskId) {
+        for (const file of attachments) {
+          const fileData = new FormData()
+          fileData.append("file", file)
+          const uploadRes = await fetch(`/api/tasks/${createdTaskId}/files`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fileData,
+          })
+          if (!uploadRes.ok) {
+            const uploadError = await uploadRes.json().catch(() => ({}))
+            console.error("[v0] Attachment upload failed:", uploadError)
+          }
         }
       }
+
+      // Create subtasks
+      if (modalSubtasks.length > 0 && hasValidTaskId) {
+        for (const st of modalSubtasks) {
+          if (!st.title.trim()) continue
+          await fetch(`/api/tasks/${createdTaskId}/subtasks`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ title: st.title.trim(), assignee_id: st.assigneeId || null, due_date: st.dueDate || null }),
+          })
+        }
+      }
+
+      // Determine assigned user name for popup
+      const assignedUser = users.find((u: any) => u.id === createFormData.assigneeId)
+      const assignedToName = assignedUser ? (assignedUser.full_name || assignedUser.email) : "Unassigned"
 
       setShowCreateModal(false)
       setCreateFormData({
@@ -571,10 +549,20 @@ console.log("formData entries", Array.from(fileData.entries()))
         promisedDate: "",
         promisedTime: "",
         assigneeId: "",
-        attachment: null,
-        attachmentName: "",
+        attachments: [],
       })
-      console.log("[v0] Task created successfully, revalidating data")
+      setModalSubtasks([])
+      setShowAddSubtaskRow(false)
+      setNewSubtaskRow({ title: "", dueDate: "", assigneeId: "" })
+
+      // Show success popup
+      setCreatedTaskInfo({
+        task_id: createdTaskPublicId || createdTaskId || "N/A",
+        title: bodyData.title,
+        description: bodyData.description || "",
+        assignedToName,
+      })
+      setCopiedAll(false)
       mutate()
     } catch (error) {
       console.error("[v0] Error creating task:", error)
@@ -732,6 +720,66 @@ console.log("formData entries", Array.from(fileData.entries()))
           />
         </div>
       </div>
+
+      {/* Task Created Success Popup */}
+      {createdTaskInfo && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+            <button
+              onClick={() => setCreatedTaskInfo(null)}
+              className="absolute top-4 right-4 p-1.5 hover:bg-[#F5F5F7] rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4 text-[#86868B]" />
+            </button>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckIcon className="w-4 h-4 text-green-600" />
+              </div>
+              <h3 className="text-base font-bold text-[#1D1D1F]">Task Created Successfully</h3>
+            </div>
+            <div className="space-y-3 mb-4">
+              <div className="bg-[#F5F5F7] rounded-xl p-4 space-y-2 text-sm">
+                <div className="flex items-start gap-2">
+                  <span className="text-[#86868B] font-medium w-24 flex-shrink-0">Task ID</span>
+                  <span className="text-[#1D1D1F] font-mono font-semibold">{createdTaskInfo.task_id}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-[#86868B] font-medium w-24 flex-shrink-0">Title</span>
+                  <span className="text-[#1D1D1F]">{createdTaskInfo.title}</span>
+                </div>
+                {createdTaskInfo.description && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-[#86868B] font-medium w-24 flex-shrink-0">Description</span>
+                    <span className="text-[#1D1D1F] line-clamp-3">{createdTaskInfo.description}</span>
+                  </div>
+                )}
+                <div className="flex items-start gap-2">
+                  <span className="text-[#86868B] font-medium w-24 flex-shrink-0">Assigned To</span>
+                  <span className="text-[#1D1D1F]">{createdTaskInfo.assignedToName}</span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const text = [
+                  `Task ID: ${createdTaskInfo.task_id}`,
+                  `Title: ${createdTaskInfo.title}`,
+                  createdTaskInfo.description ? `Description: ${createdTaskInfo.description}` : null,
+                  `Assigned To: ${createdTaskInfo.assignedToName}`,
+                ].filter(Boolean).join("\n")
+                navigator.clipboard.writeText(text).then(() => {
+                  setCopiedAll(true)
+                  setTimeout(() => setCopiedAll(false), 2000)
+                })
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#007AFF] hover:bg-[#0051D5] text-white font-semibold rounded-xl text-sm transition-colors"
+            >
+              {copiedAll ? <CheckIcon className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copiedAll ? "Copied!" : "Copy All Details"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Create Task Modal */}
       {showCreateModal && (
@@ -958,50 +1006,143 @@ console.log("formData entries", Array.from(fileData.entries()))
                 <p className="type-caption text-[#86868B] italic">Default: 9:00 AM - client-facing commitment</p>
               </div>
 
-              {/* Section 6: Attachment */}
+              {/* Section 6: Subtasks */}
               <div className="space-y-3">
-                <div className="type-caption text-[#6B7280] uppercase tracking-wider font-semibold">Attachment</div>
-                <div>
-                  <label className="type-body font-medium text-[#1D1D1F] block mb-2">Upload File (Optional)</label>
-                  <div className="flex gap-2">
-                    <label className="flex-1 flex items-center justify-center px-4 py-2.5 border border-[#E5E5E7] rounded-lg hover:bg-[#F5F5F7] cursor-pointer transition-all bg-white">
-                      <Paperclip className="w-4 h-4 text-[#86868B] mr-2" />
-                      <span className="text-sm text-[#86868B] truncate">
-                        {createFormData.attachmentName || "Choose file"}
-                      </span>
-                      <input
-                        type="file"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) {
-                            setCreateFormData({
-                              ...createFormData,
-                              attachment: file,
-                              attachmentName: file.name,
-                            })
-                          }
-                        }}
-                        className="hidden"
-                      />
-                    </label>
-                    {createFormData.attachment && (
-                      <button
-                        onClick={() =>
-                          setCreateFormData({
-                            ...createFormData,
-                            attachment: null,
-                            attachmentName: "",
-                          })
-                        }
-                        className="px-3 py-2 hover:bg-[#F5F5F7] rounded-lg transition-all"
-                        type="button"
-                      >
-                        <X className="w-4 h-4 text-[#86868B]" />
-                      </button>
-                    )}
+                <div className="flex items-center justify-between">
+                  <div className="type-caption text-[#6B7280] uppercase tracking-wider font-semibold">Subtasks</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSubtaskRow(true)}
+                    className="flex items-center gap-1 text-xs text-[#007AFF] hover:underline font-medium"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Subtask
+                  </button>
+                </div>
+
+                {/* Existing modal subtasks */}
+                {modalSubtasks.length > 0 && (
+                  <div className="space-y-2">
+                    {modalSubtasks.map((st, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-[#F5F5F7] rounded-lg px-3 py-2">
+                        <span className="flex-1 text-sm text-[#1D1D1F] truncate">{st.title}</span>
+                        {st.dueDate && <span className="text-xs text-[#86868B]">{st.dueDate}</span>}
+                        {st.assigneeId && (
+                          <span className="text-xs text-[#86868B]">
+                            {users.find((u: any) => u.id === st.assigneeId)?.full_name || ""}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setModalSubtasks(prev => prev.filter((_, i) => i !== idx))}
+                          className="p-1 text-[#86868B] hover:text-[#FF3B30]"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  {createFormData.attachment && (
-                    <p className="text-xs text-[#86868B] mt-2">File: {createFormData.attachmentName}</p>
+                )}
+
+                {/* Add subtask row */}
+                {showAddSubtaskRow && (
+                  <div className="border border-[#E5E5E7] rounded-xl p-4 space-y-3 bg-[#FAFAFA]">
+                    <input
+                      type="text"
+                      placeholder="Subtask title"
+                      value={newSubtaskRow.title}
+                      onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, title: e.target.value }))}
+                      className="w-full text-sm bg-white border border-[#E5E5E7] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === "Escape") setShowAddSubtaskRow(false) }}
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-[#86868B] block mb-1">Due Date</label>
+                        <input
+                          type="date"
+                          value={newSubtaskRow.dueDate}
+                          onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, dueDate: e.target.value }))}
+                          className="w-full text-sm bg-white border border-[#E5E5E7] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-[#86868B] block mb-1">Assign To</label>
+                        <select
+                          value={newSubtaskRow.assigneeId}
+                          onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, assigneeId: e.target.value }))}
+                          className="w-full text-sm bg-white border border-[#E5E5E7] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                        >
+                          <option value="">Unassigned</option>
+                          {users.map((u: any) => (
+                            <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={!newSubtaskRow.title.trim()}
+                        onClick={() => {
+                          if (!newSubtaskRow.title.trim()) return
+                          setModalSubtasks(prev => [...prev, { ...newSubtaskRow }])
+                          setNewSubtaskRow({ title: "", dueDate: "", assigneeId: "" })
+                          setShowAddSubtaskRow(false)
+                        }}
+                        className="flex-1 text-sm font-semibold bg-[#007AFF] text-white rounded-lg py-2 hover:bg-[#0051D5] disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowAddSubtaskRow(false); setNewSubtaskRow({ title: "", dueDate: "", assigneeId: "" }) }}
+                        className="flex-1 text-sm font-semibold bg-[#F5F5F7] text-[#1D1D1F] rounded-lg py-2 hover:bg-[#E5E5E7]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 7: Attachments (Multiple) */}
+              <div className="space-y-3">
+                <div className="type-caption text-[#6B7280] uppercase tracking-wider font-semibold">Attachments</div>
+                <div>
+                  <label className="type-body font-medium text-[#1D1D1F] block mb-2">Upload Files (Optional)</label>
+                  <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#E5E5E7] rounded-xl hover:bg-[#F5F5F7] cursor-pointer transition-all bg-white">
+                    <Paperclip className="w-4 h-4 text-[#86868B]" />
+                    <span className="text-sm text-[#86868B]">Choose files (multiple allowed)</span>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || [])
+                        if (files.length > 0) {
+                          setCreateFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...files] }))
+                          e.target.value = ""
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  {createFormData.attachments.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {createFormData.attachments.map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-[#F5F5F7] rounded-lg px-3 py-1.5">
+                          <Paperclip className="w-3.5 h-3.5 text-[#86868B] flex-shrink-0" />
+                          <span className="text-xs text-[#1D1D1F] flex-1 truncate">{file.name}</span>
+                          <span className="text-xs text-[#86868B]">{(file.size / 1024).toFixed(0)} KB</span>
+                          <button
+                            type="button"
+                            onClick={() => setCreateFormData(prev => ({ ...prev, attachments: prev.attachments.filter((_, i) => i !== idx) }))}
+                            className="p-0.5 text-[#86868B] hover:text-[#FF3B30]"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import useSWR from "swr"
-import { Plus, X, Loader2, Filter } from "lucide-react"
+import { Plus, X, Loader2, Filter, Copy, Check as CheckIcon } from "lucide-react"
 import { TaskKanban } from "@/components/task-kanban"
 import type { Task } from "@/components/my-tasks-today"
 
@@ -29,7 +29,7 @@ function CreateTaskModal({
   sprints: any[]
   users: any[]
   onClose: () => void
-  onCreated: () => void
+  onCreated: (info: { task_id: string; title: string; description: string; assignedToName: string }) => void
 }) {
   const [form, setForm] = useState({
     title: "",
@@ -71,7 +71,11 @@ function CreateTaskModal({
         setError(d.error || "Failed to create task")
         return
       }
-      onCreated()
+      const data = await res.json()
+      const assignedUser = users.find((u: any) => u.id === form.assigneeId)
+      const assignedToName = assignedUser ? (assignedUser.full_name || assignedUser.email) : "Unassigned"
+      const task_id = data?.task?.task_id || data?.task_id || data?.task?.id || data?.id || "N/A"
+      onCreated({ task_id: String(task_id), title: form.title, description: form.description, assignedToName })
       onClose()
     } catch {
       setError("Failed to create task")
@@ -195,6 +199,8 @@ export default function ClientTasksPage() {
   const [endDate, setEndDate] = useState("")
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [taskStatuses, setTaskStatuses] = useState<Record<string, string>>({})
+  const [createdTaskInfo, setCreatedTaskInfo] = useState<{ task_id: string; title: string; description: string; assignedToName: string } | null>(null)
+  const [copiedAll, setCopiedAll] = useState(false)
 
   // Fetch clients
   const { data: clientsData } = useSWR("/api/clients", fetcher, SWR_OPTS)
@@ -409,8 +415,66 @@ export default function ClientTasksPage() {
           sprints={sprints}
           users={users}
           onClose={() => setShowCreateModal(false)}
-          onCreated={() => mutateTasks()}
+          onCreated={(info) => { mutateTasks(); setCreatedTaskInfo(info); setCopiedAll(false) }}
         />
+      )}
+
+      {/* Task Created Success Popup */}
+      {createdTaskInfo && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+            <button
+              onClick={() => setCreatedTaskInfo(null)}
+              className="absolute top-4 right-4 p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X size={16} className="text-gray-400" />
+            </button>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckIcon size={16} className="text-green-600" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900">Task Created Successfully</h3>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm mb-4">
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 font-medium w-24 flex-shrink-0">Task ID</span>
+                <span className="text-gray-900 font-mono font-semibold">{createdTaskInfo.task_id}</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 font-medium w-24 flex-shrink-0">Title</span>
+                <span className="text-gray-900">{createdTaskInfo.title}</span>
+              </div>
+              {createdTaskInfo.description && (
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 font-medium w-24 flex-shrink-0">Description</span>
+                  <span className="text-gray-900 line-clamp-3">{createdTaskInfo.description}</span>
+                </div>
+              )}
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 font-medium w-24 flex-shrink-0">Assigned To</span>
+                <span className="text-gray-900">{createdTaskInfo.assignedToName}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const text = [
+                  `Task ID: ${createdTaskInfo.task_id}`,
+                  `Title: ${createdTaskInfo.title}`,
+                  createdTaskInfo.description ? `Description: ${createdTaskInfo.description}` : null,
+                  `Assigned To: ${createdTaskInfo.assignedToName}`,
+                ].filter(Boolean).join("\n")
+                navigator.clipboard.writeText(text).then(() => {
+                  setCopiedAll(true)
+                  setTimeout(() => setCopiedAll(false), 2000)
+                })
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition-colors"
+            >
+              {copiedAll ? <CheckIcon size={16} /> : <Copy size={16} />}
+              {copiedAll ? "Copied!" : "Copy All Details"}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
