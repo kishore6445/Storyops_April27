@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import useSWR from "swr"
 import {
   Plus,
   ChevronRight,
+  ChevronLeft,
   ChevronDown,
   X,
   Flag,
@@ -192,6 +193,58 @@ function TaskCard({
   )
 }
 
+// ─── View All Modal ────────────────────────────────────────────────────────────
+function ViewAllModal({
+  title,
+  tasks,
+  selectedIds,
+  onSelect,
+  onCardClick,
+  actionLabel,
+  onAction,
+  onClose,
+}: {
+  title: string
+  tasks: BacklogTask[]
+  selectedIds: Set<string>
+  onSelect: (id: string) => void
+  onCardClick: (task: BacklogTask) => void
+  actionLabel: string
+  onAction: (task: BacklogTask, e: React.MouseEvent) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E7]">
+          <h3 className="text-[15px] font-bold text-[#1D1D1F] uppercase tracking-wide">
+            {title} <span className="text-[#86868B] font-normal">({tasks.length})</span>
+          </h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-[#F5F5F7] rounded-lg transition-colors">
+            <X className="w-4 h-4 text-[#86868B]" />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-6 grid grid-cols-3 gap-3">
+          {tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              selected={selectedIds.has(task.id)}
+              onSelect={onSelect}
+              onClick={(t) => { onCardClick(t); onClose() }}
+              actionLabel={actionLabel}
+              onAction={onAction}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Section Row ──────────────────────────────────────────────────────────────
 function SectionRow({
   icon,
@@ -218,9 +271,14 @@ function SectionRow({
   actionLabel: string
   onAction: (task: BacklogTask, e: React.MouseEvent) => void
 }) {
-  const [expanded, setExpanded] = useState(true)
-  const visible = tasks.slice(0, 4)
-  const hasMore = tasks.length > 4
+  const PAGE_SIZE = 4
+  const [page, setPage] = useState(0)
+  const [showAll, setShowAll] = useState(false)
+
+  const totalPages = Math.ceil(tasks.length / PAGE_SIZE)
+  const visible = tasks.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+  const hasPrev = page > 0
+  const hasNext = page < totalPages - 1
 
   return (
     <div className="mb-6">
@@ -236,12 +294,15 @@ function SectionRow({
           </div>
           <span className="text-[12px] text-[#86868B] ml-1">{subtitle}</span>
         </div>
-        <button className="flex items-center gap-1 text-[12px] font-semibold text-[#007AFF] hover:underline">
+        <button
+          onClick={() => setShowAll(true)}
+          className="flex items-center gap-1 text-[12px] font-semibold text-[#007AFF] hover:underline"
+        >
           View all <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* Cards grid */}
+      {/* Cards grid with prev/next arrows */}
       <div className="relative">
         <div className="grid grid-cols-4 gap-3">
           {visible.map((task) => (
@@ -255,17 +316,46 @@ function SectionRow({
               onAction={onAction}
             />
           ))}
-          {/* Empty fill slots */}
-          {visible.length < 4 && Array.from({ length: 4 - visible.length }).map((_, i) => (
+          {/* Empty fill slots to keep grid stable */}
+          {visible.length < PAGE_SIZE && Array.from({ length: PAGE_SIZE - visible.length }).map((_, i) => (
             <div key={`empty-${i}`} />
           ))}
         </div>
-        {hasMore && (
-          <button className="absolute right-0 top-1/2 -translate-y-1/2 -mr-4 w-8 h-8 bg-white border border-[#E5E5E7] rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
+
+        {/* Prev arrow */}
+        {hasPrev && (
+          <button
+            onClick={() => setPage((p) => p - 1)}
+            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-5 w-8 h-8 bg-white border border-[#E5E5E7] rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow z-10"
+          >
+            <ChevronLeft className="w-4 h-4 text-[#1D1D1F]" />
+          </button>
+        )}
+
+        {/* Next arrow */}
+        {hasNext && (
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-5 w-8 h-8 bg-white border border-[#E5E5E7] rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow z-10"
+          >
             <ChevronRight className="w-4 h-4 text-[#1D1D1F]" />
           </button>
         )}
       </div>
+
+      {/* View All Modal */}
+      {showAll && (
+        <ViewAllModal
+          title={title}
+          tasks={tasks}
+          selectedIds={selectedIds}
+          onSelect={onSelect}
+          onCardClick={onCardClick}
+          actionLabel={actionLabel}
+          onAction={onAction}
+          onClose={() => setShowAll(false)}
+        />
+      )}
     </div>
   )
 }
@@ -525,6 +615,108 @@ function DetailPanel({
   )
 }
 
+// ─── Bulk Popover ──────────────────────────────────────────────────────────────
+function BulkPopover({
+  type,
+  sprints,
+  users,
+  onApply,
+  onClose,
+}: {
+  type: "user" | "sprint" | "priority" | "date"
+  sprints: { id: string; name: string }[]
+  users: { id: string; full_name: string; email: string }[]
+  onApply: (value: string) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [dateVal, setDateVal] = useState("")
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [onClose])
+
+  return (
+    <div
+      ref={ref}
+      className="absolute bottom-12 bg-white border border-[#E5E5E7] rounded-xl shadow-xl z-50 min-w-[200px] py-1.5 overflow-hidden"
+    >
+      {type === "user" && (
+        <>
+          <div className="px-3 py-1.5 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Assign User</div>
+          {users.map((u) => (
+            <button
+              key={u.id}
+              onClick={() => onApply(u.id)}
+              className="w-full text-left px-3 py-2 text-[13px] text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors flex items-center gap-2"
+            >
+              <div className="w-5 h-5 rounded-full bg-[#007AFF] flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
+                {(u.full_name || u.email || "?")[0].toUpperCase()}
+              </div>
+              {u.full_name || u.email}
+            </button>
+          ))}
+        </>
+      )}
+      {type === "sprint" && (
+        <>
+          <div className="px-3 py-1.5 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Assign Sprint</div>
+          {sprints.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onApply(s.id)}
+              className="w-full text-left px-3 py-2 text-[13px] text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
+            >
+              {s.name}
+            </button>
+          ))}
+          {sprints.length === 0 && <p className="px-3 py-2 text-[13px] text-[#86868B]">No sprints available</p>}
+        </>
+      )}
+      {type === "priority" && (
+        <>
+          <div className="px-3 py-1.5 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Set Priority</div>
+          {(["high", "medium", "low"] as const).map((p) => {
+            const cfg = PRIORITY_CONFIG[p]
+            return (
+              <button
+                key={p}
+                onClick={() => onApply(p)}
+                className="w-full text-left px-3 py-2 text-[13px] text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors flex items-center gap-2"
+              >
+                <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full", cfg.color)}>{cfg.label}</span>
+              </button>
+            )
+          })}
+        </>
+      )}
+      {type === "date" && (
+        <div className="px-3 py-3 flex flex-col gap-2">
+          <div className="text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Set Due Date</div>
+          <input
+            type="date"
+            value={dateVal}
+            onChange={(e) => setDateVal(e.target.value)}
+            className="text-[13px] border border-[#E5E5E7] rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+            autoFocus
+          />
+          <button
+            disabled={!dateVal}
+            onClick={() => dateVal && onApply(dateVal)}
+            className="text-[13px] font-semibold text-white bg-[#007AFF] rounded-lg py-1.5 disabled:opacity-40 hover:bg-[#0051D5] transition-colors"
+          >
+            Apply
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export function BacklogDashboard() {
   const { data: backlogData, isLoading, mutate } = useSWR("/api/backlog", fetcher, { revalidateOnFocus: false })
@@ -543,6 +735,8 @@ export function BacklogDashboard() {
   const [search, setSearch] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [detailTask, setDetailTask] = useState<BacklogTask | null>(null)
+  const [bulkPopover, setBulkPopover] = useState<"user" | "sprint" | "priority" | "date" | null>(null)
+  const [bulkApplying, setBulkApplying] = useState(false)
 
   // ── Derived stats ──────────────────────────────────────────────────────────
   const totalCount        = tasks.length
@@ -593,6 +787,32 @@ export function BacklogDashboard() {
     })
     await mutate()
     setDetailTask(null)
+  }
+
+  const handleBulkApply = async (type: "user" | "sprint" | "priority" | "date", value: string) => {
+    if (selectedIds.size === 0) return
+    setBulkApplying(true)
+    setBulkPopover(null)
+    const token = localStorage.getItem("sessionToken")
+    const fieldMap: Record<string, string> = {
+      user: "assigned_to",
+      sprint: "sprint_id",
+      priority: "priority",
+      date: "due_date",
+    }
+    const field = fieldMap[type]
+    await Promise.all(
+      Array.from(selectedIds).map((taskId) =>
+        fetch("/api/backlog", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ taskId, [field]: value }),
+        })
+      )
+    )
+    await mutate()
+    setSelectedIds(new Set())
+    setBulkApplying(false)
   }
 
   const TABS = [
@@ -841,14 +1061,61 @@ export function BacklogDashboard() {
 
         <div className="h-4 w-px bg-[#E5E5E7]" />
 
-        <button className="text-[13px] font-semibold text-[#1D1D1F] hover:text-[#007AFF] transition-colors">Assign User</button>
-        <button className="text-[13px] font-semibold text-[#1D1D1F] hover:text-[#007AFF] transition-colors">Assign Sprint</button>
-        <button className="text-[13px] font-semibold text-[#1D1D1F] hover:text-[#007AFF] transition-colors">Set Priority</button>
-        <button className="text-[13px] font-semibold text-[#1D1D1F] hover:text-[#007AFF] transition-colors">Set Due Date</button>
+        {/* Bulk action buttons – each opens its own popover */}
+        {(["user", "sprint", "priority", "date"] as const).map((type) => {
+          const labels: Record<string, string> = { user: "Assign User", sprint: "Assign Sprint", priority: "Set Priority", date: "Set Due Date" }
+          const isOpen = bulkPopover === type
+          return (
+            <div key={type} className="relative">
+              <button
+                disabled={selectedIds.size === 0 || bulkApplying}
+                onClick={() => setBulkPopover(isOpen ? null : type)}
+                className={cn(
+                  "text-[13px] font-semibold transition-colors",
+                  selectedIds.size === 0 || bulkApplying ? "text-[#C7C7CC] cursor-not-allowed" : "text-[#1D1D1F] hover:text-[#007AFF]"
+                )}
+              >
+                {labels[type]}
+              </button>
+              {isOpen && (
+                <BulkPopover
+                  type={type}
+                  sprints={sprints}
+                  users={users}
+                  onApply={(val) => handleBulkApply(type, val)}
+                  onClose={() => setBulkPopover(null)}
+                />
+              )}
+            </div>
+          )
+        })}
 
         <div className="h-4 w-px bg-[#E5E5E7] ml-auto" />
 
-        <button className="text-[13px] font-semibold text-[#FF3B30] hover:opacity-80 transition-opacity">Remove</button>
+        <button
+          disabled={selectedIds.size === 0 || bulkApplying}
+          onClick={async () => {
+            if (selectedIds.size === 0) return
+            if (!confirm(`Remove ${selectedIds.size} task(s) from backlog?`)) return
+            setBulkApplying(true)
+            const token = localStorage.getItem("sessionToken")
+            await Promise.all(
+              Array.from(selectedIds).map((id) =>
+                fetch(`/api/tasks/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } })
+              )
+            )
+            await mutate()
+            setSelectedIds(new Set())
+            setBulkApplying(false)
+          }}
+          className={cn(
+            "text-[13px] font-semibold transition-opacity flex items-center gap-1",
+            selectedIds.size === 0 || bulkApplying ? "text-[#FFA09A] cursor-not-allowed" : "text-[#FF3B30] hover:opacity-80"
+          )}
+        >
+          {bulkApplying && <Loader2 className="w-3 h-3 animate-spin" />}
+          Remove
+        </button>
 
         <div className="h-4 w-px bg-[#E5E5E7]" />
 
@@ -857,7 +1124,7 @@ export function BacklogDashboard() {
         </span>
         <div className="flex items-center gap-1">
           <button className="w-6 h-6 border border-[#E5E5E7] rounded flex items-center justify-center hover:bg-[#F5F5F7]">
-            <ChevronRight className="w-3.5 h-3.5 rotate-180 text-[#86868B]" />
+            <ChevronLeft className="w-3.5 h-3.5 text-[#86868B]" />
           </button>
           <span className="text-[12px] font-semibold text-[#1D1D1F] px-1">1</span>
           <button className="w-6 h-6 border border-[#E5E5E7] rounded flex items-center justify-center hover:bg-[#F5F5F7]">
