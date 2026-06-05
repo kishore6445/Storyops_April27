@@ -743,7 +743,7 @@ export function BacklogDashboard() {
   const unassignedCount   = tasks.filter((t) => !t.assigned_to).length
   const noSprintCount     = tasks.filter((t) => !t.sprint_id).length
   const highPriorityCount = tasks.filter((t) => t.priority === "high").length
-  const readyCount        = tasks.filter((t) => t.assigned_to && !t.sprint_id).length
+  const readyCount        = tasks.filter((t) => t.assigned_to && t.sprint_id).length
 
   // ── Filter tasks ───────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -758,9 +758,12 @@ export function BacklogDashboard() {
   }, [tasks, activeTab, clientFilter, priorityFilter, search])
 
   // ── Sections ───────────────────────────────────────────────────────────────
-  const unassignedTasks  = filtered.filter((t) => !t.assigned_to)
-  const noSprintTasks    = filtered.filter((t) => !t.sprint_id && t.assigned_to)
-  const readyTasks       = filtered.filter((t) => t.assigned_to && !t.sprint_id)
+  // Unassigned: no assignee (regardless of sprint)
+  const unassignedTasks = filtered.filter((t) => !t.assigned_to)
+  // No Sprint: has an assignee but no sprint yet
+  const noSprintTasks   = filtered.filter((t) => t.assigned_to && !t.sprint_id)
+  // Ready for Sprint: has both assignee and sprint – assigned & ready
+  const readyTasks      = filtered.filter((t) => t.assigned_to && t.sprint_id)
 
   const handleSelect = (id: string) => {
     setSelectedIds((prev) => {
