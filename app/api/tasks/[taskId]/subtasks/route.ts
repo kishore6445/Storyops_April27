@@ -141,10 +141,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .maybeSingle()
 
     if (taskError || !task) {
-      console.error("[v0] subtask POST - parent task not found. taskId:", taskId, "error:", taskError?.message)
+      console.error("[v0] Error fetching parent task identifier:", taskError)
       return NextResponse.json({ error: "Failed to resolve parent task" }, { status: 400 })
     }
-    console.log("[v0] subtask POST - parent task found:", task.task_id, "title:", task.title)
 
     const { count: existingCount, error: countError } = await supabase
       .from("task_subtasks")
@@ -174,19 +173,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .single()
 
     if (error) {
-      console.error("[v0] subtask insert error:", error.code, error.message, error.details)
+      console.error("[v0] Error creating subtask:", error)
       return NextResponse.json({ error: "Failed to create subtask", details: error.message }, { status: 400 })
     }
-    console.log("[v0] subtask created successfully:", subtask?.id)
 
-    // Log activity (non-fatal)
-    supabase.from("task_activity").insert({
+    // Log activity
+    await supabase.from("task_activity").insert({
       task_id: taskId,
       created_by: session.userId,
       action_type: "subtask_created",
       description: `Created subtask: ${title.trim()}`
-    }).then(({ error: actErr }) => {
-      if (actErr) console.error("[v0] task_activity insert error (non-fatal):", actErr.message)
     })
 
     return NextResponse.json({
