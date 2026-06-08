@@ -95,7 +95,26 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    return NextResponse.json({ tasks: tasksWithIds || [] })
+    // Attach multi-assignee data from task_assignees
+    const taskIds = (tasksWithIds || []).map((t) => t.id)
+    let assigneesMap: Record<string, any[]> = {}
+    if (taskIds.length > 0) {
+      const { data: taskAssignees } = await supabase
+        .from("task_assignees")
+        .select("task_id, user_id, users(id, full_name, email)")
+        .in("task_id", taskIds)
+      for (const row of taskAssignees || []) {
+        if (!assigneesMap[row.task_id]) assigneesMap[row.task_id] = []
+        if (row.users) assigneesMap[row.task_id].push(row.users)
+      }
+    }
+
+    const tasksWithAssignees = (tasksWithIds || []).map((t) => ({
+      ...t,
+      assignees: assigneesMap[t.id] || [],
+    }))
+
+    return NextResponse.json({ tasks: tasksWithAssignees })
   } catch (error) {
     console.error("[v0] Error fetching tasks:", error)
     return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 })
@@ -152,7 +171,8 @@ export async function POST(request: NextRequest) {
       title, 
       description, 
       assignedTo, 
-      assigneeId, 
+      assigneeId,
+      assigneeIds,
       status, 
       dueDate, 
       dueTime, 
@@ -239,7 +259,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to create task", details: error.message }, { status: 500 })
     }
 
-    console.log("[v0] Task created successfully:", task?.id)
+    // Insert into task_assignees for multi-assignee support
+    // Build the full list: assigneeIds array takes precedence, fallback to single assigneeId/assignedTo
+    const allAssigneeIds: string[] = Array.isArray(assigneeIds) && assigneeIds.length > 0
+      ? assigneeIds
+      : [assigneeId || assignedTo].filter(Boolean)
+
+    if (task?.id && allAssigneeIds.length > 0) {
+      const rows = allAssigneeIds.map((uid: string) => ({ task_id: task.id, user_id: uid }))
+      const { error: assigneeError } = await supabase.from("task_assignees").insert(rows)
+      if (assigneeError) {
+        // Non-fatal: log but don't fail the whole request
+        console.error("[v0] task_assignees insert error:", assigneeError.message)
+      }
+    }
 
     return NextResponse.json({ task, success: true }, { status: 201 })
   } catch (error) {
@@ -268,6 +301,7 @@ export async function PUT(request: NextRequest) {
       title, 
       description, 
       assigneeId,
+      assigneeIds,
       assignedTo, 
       status, 
       dueDate, 
@@ -331,6 +365,18 @@ export async function PUT(request: NextRequest) {
     if (error) {
       console.error("[v0] Error updating task:", error, { taskId, updateData })
       return NextResponse.json({ error: "Failed to update task" }, { status: 500 })
+    }
+
+    // Sync task_assignees if assigneeIds array was provided
+    if (Array.isArray(assigneeIds)) {
+      await supabase.from("task_assignees").delete().eq("task_id", taskId)
+      if (assigneeIds.length > 0) {
+        const rows = assigneeIds.map((uid: string) => ({ task_id: taskId, user_id: uid }))
+        const { error: assigneeError } = await supabase.from("task_assignees").insert(rows)
+        if (assigneeError) {
+          console.error("[v0] task_assignees sync error:", assigneeError.message)
+        }
+      }
     }
 
     console.log("[v0] PUT /api/tasks - Successfully updated task:", { taskId, updatedCount: updatedTasks?.length })
