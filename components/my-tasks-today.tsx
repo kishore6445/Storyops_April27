@@ -525,14 +525,17 @@ export function MyTasksToday() {
       }
 
       // Create subtasks
+      console.log("[v0] subtasks to create:", modalSubtasks.length, "hasValidTaskId:", hasValidTaskId, "createdTaskId:", createdTaskId)
       if (modalSubtasks.length > 0 && hasValidTaskId) {
         for (const st of modalSubtasks) {
           if (!st.title.trim()) continue
-          await fetch(`/api/tasks/${createdTaskId}/subtasks`, {
+          const stRes = await fetch(`/api/tasks/${createdTaskId}/subtasks`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ title: st.title.trim(), assignee_id: st.assigneeId || null, due_date: st.dueDate || null }),
           })
+          const stData = await stRes.json()
+          console.log("[v0] subtask create result:", stRes.status, JSON.stringify(stData))
         }
       }
 
