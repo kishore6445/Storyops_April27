@@ -1111,6 +1111,45 @@ export function MyTasksToday() {
                     )}
                   </div>
 
+                  {/* Attachments */}
+                  <div>
+                    <label className="text-[13px] font-medium text-[#1D1D1F] block mb-1.5">Attachments <span className="text-[11px] text-[#86868B] font-normal">(Optional)</span></label>
+                    <label className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-[#D1D1D6] rounded-lg hover:bg-[#F5F5F7] cursor-pointer transition-colors bg-white">
+                      <Paperclip className="w-4 h-4 text-[#86868B] flex-shrink-0" />
+                      <span className="text-[13px] text-[#86868B]">Click to upload files — multiple allowed</span>
+                      <input
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || [])
+                          if (files.length > 0) {
+                            setCreateFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...files] }))
+                            e.target.value = ""
+                          }
+                        }}
+                      />
+                    </label>
+                    {createFormData.attachments.length > 0 && (
+                      <div className="mt-2 space-y-1.5">
+                        {createFormData.attachments.map((file, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-[#F5F5F7] rounded-lg px-3 py-1.5">
+                            <Paperclip className="w-3.5 h-3.5 text-[#86868B] flex-shrink-0" />
+                            <span className="text-[12px] text-[#1D1D1F] flex-1 truncate">{file.name}</span>
+                            <span className="text-[11px] text-[#86868B] flex-shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+                            <button
+                              type="button"
+                              onClick={() => setCreateFormData(prev => ({ ...prev, attachments: prev.attachments.filter((_, i) => i !== idx) }))}
+                              className="p-0.5 text-[#86868B] hover:text-[#FF3B30] flex-shrink-0"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
 
                 {/* ── RIGHT PANEL ── */}
