@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Circle, Calendar, Zap, Clock, AlertCircle, Edit2, X, Loader2, LayoutGrid, Plus, User, Users, Paperclip, Copy, Check as CheckIcon } from "lucide-react"
+import { CheckCircle2, Circle, Calendar, Zap, Clock, AlertCircle, Edit2, X, Loader2, LayoutGrid, Plus, User, Users, Paperclip, Copy, Check as CheckIcon, Flag, Tag, ChevronDown, Maximize2, Bold, Italic, Underline, List, Link, Image as ImageIcon, AtSign, Smile, ListOrdered, MoreVertical } from "lucide-react"
 import useSWR from "swr"
 import { TaskKanban } from "./task-kanban"
 import { SprintToolbarUnified } from "./sprint-toolbar-unified"
@@ -212,8 +212,10 @@ export function MyTasksToday() {
     dueTime: "",
     promisedDate: "",
     promisedTime: "",
-    assigneeId: "",
+    assigneeId: "",        // kept for backward compat (first assignee)
+    assigneeIds: [] as string[],  // multi-assignee
     attachments: [] as File[],
+    tags: [] as string[],
   })
   // Subtasks for the create modal
   const [modalSubtasks, setModalSubtasks] = useState<Array<{ title: string; dueDate: string; assigneeId: string }>>([])
@@ -470,14 +472,16 @@ export function MyTasksToday() {
     setIsCreating(true)
     const token = localStorage.getItem("sessionToken")
     try {
-      const { attachments, ...bodyData } = createFormData
+      const { attachments, assigneeIds, tags, ...bodyData } = createFormData
+      // Use first assigneeId from multi-select for backward compat, send full array too
+      const primaryAssigneeId = assigneeIds.length > 0 ? assigneeIds[0] : createFormData.assigneeId
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(bodyData),
+        body: JSON.stringify({ ...bodyData, assigneeId: primaryAssigneeId, assigneeIds, tags }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -532,9 +536,11 @@ export function MyTasksToday() {
         }
       }
 
-      // Determine assigned user name for popup
-      const assignedUser = users.find((u: any) => u.id === createFormData.assigneeId)
-      const assignedToName = assignedUser ? (assignedUser.full_name || assignedUser.email) : "Unassigned"
+      // Determine assigned user name(s) for popup
+      const allAssigneeIds = createFormData.assigneeIds.length > 0 ? createFormData.assigneeIds : (createFormData.assigneeId ? [createFormData.assigneeId] : [])
+      const assignedToName = allAssigneeIds.length > 0
+        ? allAssigneeIds.map((id: string) => { const u = users.find((u: any) => u.id === id); return u ? (u.full_name || u.email) : id }).join(", ")
+        : "Unassigned"
 
       setShowCreateModal(false)
       setCreateFormData({
@@ -549,7 +555,9 @@ export function MyTasksToday() {
         promisedDate: "",
         promisedTime: "",
         assigneeId: "",
+        assigneeIds: [],
         attachments: [],
+        tags: [],
       })
       setModalSubtasks([])
       setShowAddSubtaskRow(false)
@@ -782,428 +790,499 @@ export function MyTasksToday() {
       )}
 
       {/* Create Task Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
-            {/* Header - Sticky */}
-            <div className="sticky top-0 bg-white border-b border-[#E5E5E5] px-8 py-5 flex items-center justify-between z-10">
-              <div>
-                <h2 className="type-h2">Create New Task</h2>
-                <p className="type-caption text-[#86868B] mt-1">Add task details, timelines, and assignment</p>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="p-2 hover:bg-[#F5F5F7] rounded-lg transition-colors flex-shrink-0"
-              >
-                <X className="w-5 h-5 text-[#86868B]" />
-              </button>
-            </div>
+      {showCreateModal && (() => {
+        const bufferDays = createFormData.dueDate && createFormData.promisedDate
+          ? Math.ceil((new Date(createFormData.promisedDate).getTime() - new Date(createFormData.dueDate).getTime()) / (1000 * 60 * 60 * 24))
+          : null
+        const isOnTrack = bufferDays !== null && bufferDays >= 1
+        const priorityColors: Record<string, string> = { high: "#FF3B30", medium: "#FF9500", low: "#34C759" }
+        const priorityColor = priorityColors[createFormData.priority] || "#86868B"
 
-            {/* Content - Scrollable */}
-            <div className="overflow-y-auto flex-1">
-            <div className="px-8 py-6 space-y-8">
-              {/* Loading State */}
-              {!clients.length || !sprints.length || !users.length ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <div className="inline-flex items-center justify-center w-10 h-10 bg-[#F5F5F7] rounded-full mb-4">
-                      <Loader2 className="w-5 h-5 text-[#007AFF] animate-spin" />
-                    </div>
-                    <p className="text-sm text-[#86868B]">Loading form data...</p>
-                    {!clients.length && <p className="text-xs text-[#FF3B30] mt-2">Clients: {clients.length}</p>}
-                    {!sprints.length && <p className="text-xs text-[#FF9500] mt-2">Sprints: {sprints.length}</p>}
-                    {!users.length && <p className="text-xs text-[#FF9500] mt-2">Users: {users.length}</p>}
-                  </div>
-                </div>
-              ) : (
-                <>
-              {/* Section 1: Task Basics */}
-              <div className="space-y-4">
-                <div className="type-caption text-[#6B7280] uppercase tracking-wider font-semibold">Task Details</div>
-                
-                {/* Task Title */}
-                <div>
-                  <label className="type-body font-medium text-[#1D1D1F] block mb-2">Task Title *</label>
-                  <input
-                    type="text"
-                    placeholder="Enter task title"
-                    value={createFormData.title}
-                    onChange={(e) => setCreateFormData({ ...createFormData, title: e.target.value })}
-                    className="w-full type-body bg-[#F5F5F7] border border-[#E5E5E7] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                  />
-                </div>
+        const toggleAssignee = (userId: string) => {
+          setCreateFormData(prev => {
+            const already = prev.assigneeIds.includes(userId)
+            const next = already ? prev.assigneeIds.filter(id => id !== userId) : [...prev.assigneeIds, userId]
+            return { ...prev, assigneeIds: next, assigneeId: next[0] || "" }
+          })
+        }
 
-                {/* Description */}
-                <div>
-                  <label className="type-body font-medium text-[#1D1D1F] block mb-2">Description</label>
-                  <textarea
-                    value={createFormData.description}
-                    onChange={(e) => setCreateFormData({ ...createFormData, description: e.target.value })}
-                    placeholder="Add task description, requirements, or notes..."
-                    className="w-full type-body bg-[#F5F5F7] border border-[#E5E5E7] rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                    rows={4}
-                  />
-                </div>
-              </div>
+        const addTag = (tag: string) => {
+          const t = tag.trim()
+          if (t && !createFormData.tags.includes(t)) {
+            setCreateFormData(prev => ({ ...prev, tags: [...prev.tags, t] }))
+          }
+        }
+        const removeTag = (t: string) => setCreateFormData(prev => ({ ...prev, tags: prev.tags.filter(x => x !== t) }))
 
-              {/* Section 2: Client Selection & Sprint */}
-              <div className="space-y-4">
-                <div className="type-caption text-[#6B7280] uppercase tracking-wider font-semibold">Project Assignment</div>
-                
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Client *</label>
-                    <select
-                      value={createFormData.clientId}
-                      onChange={(e) => setCreateFormData({ ...createFormData, clientId: e.target.value, sprintId: "" })}
-                      className="w-full type-body bg-[#F5F5F7] border border-[#E5E5E7] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                    >
-                      <option value="">Select client</option>
-                      {clients.map((client: any) => (
-                        <option key={client.id} value={client.id}>
-                          {client.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+        const QUICK_TEMPLATES = [
+          { label: "Social Media Post", icon: "📱" },
+          { label: "Blog Article", icon: "📝" },
+          { label: "YouTube Video", icon: "▶" },
+          { label: "Flyer / Poster", icon: "🖼" },
+          { label: "Landing Page", icon: "📄" },
+        ]
 
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Sprint</label>
-                    <select
-                      value={createFormData.sprintId}
-                      onChange={(e) => setCreateFormData({ ...createFormData, sprintId: e.target.value })}
-                      className="w-full type-body bg-[#F5F5F7] border border-[#E5E5E7] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                    >
-                      <option value="">Backlog (No Sprint)</option>
-                      {filteredSprints.map((sprint: any) => (
-                        <option key={sprint.id} value={sprint.id}>
-                          {sprint.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1100px] max-h-[95vh] overflow-hidden flex flex-col">
 
-              {/* Section 3: Phase, Priority & Assignment */}
-              <div className="space-y-4">
-                <div className="type-caption text-[#6B7280] uppercase tracking-wider font-semibold">Task Settings</div>
-                
-                <div className="grid grid-cols-3 gap-6">
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Phase</label>
-                    <select
-                      value={createFormData.phaseId}
-                      onChange={(e) => setCreateFormData({ ...createFormData, phaseId: e.target.value })}
-                      className="w-full type-body bg-[#F5F5F7] border border-[#E5E5E7] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                    >
-                      <option value="story-research">Story Research</option>
-                      <option value="story-writing">Story Writing</option>
-                      <option value="story-design-video">Story Design & Video</option>
-                      <option value="story-website">Story Website</option>
-                      <option value="story-distribution">Story Distribution</option>
-                      <option value="story-analytics">Story Analytics</option>
-                      <option value="story-learning">Story Learning</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Priority</label>
-                    <select
-                      value={createFormData.priority}
-                      onChange={(e) => setCreateFormData({ ...createFormData, priority: e.target.value as "low" | "medium" | "high" })}
-                      className="w-full type-body bg-[#F5F5F7] border border-[#E5E5E7] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Assign To</label>
-                    <select
-                      value={createFormData.assigneeId}
-                      onChange={(e) => setCreateFormData({ ...createFormData, assigneeId: e.target.value })}
-                      className="w-full type-body bg-[#F5F5F7] border border-[#E5E5E7] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                    >
-                      <option value="">Unassigned</option>
-                      {users.map((user: any) => (
-                        <option key={user.id} value={user.id}>
-                          {user.full_name || user.email}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 4: Internal Deadline (Team Commitment) */}
-              <div className="bg-gradient-to-br from-[#F8F9FB] to-[#F0F4FF] border-2 border-[#E0E9FF] rounded-xl p-6 space-y-4">
+              {/* ── Header ── */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E5E7]">
                 <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full bg-[#007AFF]"></div>
+                  <div className="w-9 h-9 rounded-xl bg-[#EEF4FF] flex items-center justify-center flex-shrink-0">
+                    <LayoutGrid className="w-5 h-5 text-[#3B6FE8]" />
+                  </div>
                   <div>
-                    <h3 className="type-body font-semibold text-[#1C1C1E]">Internal Deadline</h3>
-                    <p className="type-caption text-[#86868B]">When team commits work is ready internally</p>
+                    <h2 className="text-[16px] font-semibold text-[#1D1D1F] leading-tight">Create New Task</h2>
+                    <p className="text-[12px] text-[#86868B] leading-tight">Break down work with subtasks and checklists</p>
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Due Date</label>
-                    <input
-                      type="date"
-                      value={createFormData.dueDate}
-                      onChange={(e) => setCreateFormData({ ...createFormData, dueDate: e.target.value })}
-                      className="w-full type-body bg-white border border-[#E5E5E7] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Due Time</label>
-                    <input
-                      type="time"
-                      value={createFormData.dueTime}
-                      onChange={(e) => setCreateFormData({ ...createFormData, dueTime: e.target.value })}
-                      className="w-full type-body bg-white border border-[#E5E5E7] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent transition-all"
-                    />
-                  </div>
-                </div>
-                <p className="type-caption text-[#86868B] italic">Default: 5:00 PM for internal review buffer</p>
-              </div>
-
-              {/* Section 5: Client Promise (External Delivery) */}
-              <div className="bg-gradient-to-br from-[#F0FFF4] to-[#E8FFF0] border-2 border-[#34C75933] rounded-xl p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full bg-[#34C759]"></div>
-                  <div>
-                    <h3 className="type-body font-semibold text-[#1C1C1E]">Client Promise</h3>
-                    <p className="type-caption text-[#86868B]">When client expects delivery</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Promised Date</label>
-                    <input
-                      type="date"
-                      value={createFormData.promisedDate}
-                      onChange={(e) => setCreateFormData({ ...createFormData, promisedDate: e.target.value })}
-                      className="w-full type-body bg-white border border-[#E5E5E7] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#34C759] focus:border-transparent transition-all"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="type-body font-medium text-[#1D1D1F] block mb-2">Promised Time</label>
-                    <input
-                      type="time"
-                      value={createFormData.promisedTime}
-                      onChange={(e) => setCreateFormData({ ...createFormData, promisedTime: e.target.value })}
-                      className="w-full type-body bg-white border border-[#E5E5E7] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#34C759] focus:border-transparent transition-all"
-                    />
-                  </div>
-                </div>
-                <p className="type-caption text-[#86868B] italic">Default: 9:00 AM - client-facing commitment</p>
-              </div>
-
-              {/* Section 6: Subtasks */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="type-caption text-[#6B7280] uppercase tracking-wider font-semibold">Subtasks</div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddSubtaskRow(true)}
-                    className="flex items-center gap-1 text-xs text-[#007AFF] hover:underline font-medium"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Subtask
+                <div className="flex items-center gap-1">
+                  <button className="p-2 hover:bg-[#F5F5F7] rounded-lg transition-colors text-[#86868B]">
+                    <Maximize2 className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-[#F5F5F7] rounded-lg transition-colors text-[#86868B]">
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
 
-                {/* Existing modal subtasks */}
-                {modalSubtasks.length > 0 && (
-                  <div className="space-y-2">
-                    {modalSubtasks.map((st, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-[#F5F5F7] rounded-lg px-3 py-2">
-                        <span className="flex-1 text-sm text-[#1D1D1F] truncate">{st.title}</span>
-                        {st.dueDate && <span className="text-xs text-[#86868B]">{st.dueDate}</span>}
-                        {st.assigneeId && (
-                          <span className="text-xs text-[#86868B]">
-                            {users.find((u: any) => u.id === st.assigneeId)?.full_name || ""}
-                          </span>
+              {/* ── Two-panel body ── */}
+              <div className="flex flex-1 overflow-hidden">
+
+                {/* ── LEFT PANEL ── */}
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 border-r border-[#E5E5E7]">
+
+                  {/* Task Name */}
+                  <div>
+                    <label className="text-[13px] font-medium text-[#1D1D1F] block mb-1.5">Task Name <span className="text-[#FF3B30]">*</span></label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        maxLength={150}
+                        placeholder="e.g. Create Lead Magnet for Client – Complete Guide"
+                        value={createFormData.title}
+                        onChange={(e) => setCreateFormData({ ...createFormData, title: e.target.value })}
+                        className="w-full text-[13px] border border-[#D1D1D6] rounded-lg px-3 py-2.5 pr-14 focus:outline-none focus:ring-2 focus:ring-[#007AFF] focus:border-transparent"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#86868B]">
+                        {createFormData.title.length}/150
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Client / Sprint / Assign To / Priority row */}
+                  <div className="grid grid-cols-4 gap-3">
+                    {/* Client */}
+                    <div>
+                      <label className="text-[12px] font-medium text-[#1D1D1F] block mb-1.5">Client <span className="text-[#FF3B30]">*</span></label>
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md bg-[#EEF4FF] flex items-center justify-center pointer-events-none">
+                          <User className="w-3 h-3 text-[#3B6FE8]" />
+                        </div>
+                        <select
+                          value={createFormData.clientId}
+                          onChange={(e) => setCreateFormData({ ...createFormData, clientId: e.target.value, sprintId: "" })}
+                          className="w-full text-[13px] border border-[#D1D1D6] rounded-lg pl-9 pr-8 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#007AFF] appearance-none bg-white"
+                        >
+                          <option value="">Select client</option>
+                          {clients.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#86868B] pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Sprint */}
+                    <div>
+                      <label className="text-[12px] font-medium text-[#1D1D1F] block mb-1.5">Sprint</label>
+                      <div className="relative">
+                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md bg-[#E8F8F0] flex items-center justify-center pointer-events-none">
+                          <Zap className="w-3 h-3 text-[#34C759]" />
+                        </div>
+                        <select
+                          value={createFormData.sprintId}
+                          onChange={(e) => setCreateFormData({ ...createFormData, sprintId: e.target.value })}
+                          className="w-full text-[13px] border border-[#D1D1D6] rounded-lg pl-9 pr-8 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#007AFF] appearance-none bg-white"
+                        >
+                          <option value="">Backlog</option>
+                          {filteredSprints.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#86868B] pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Assign To — multi-select dropdown */}
+                    <div className="relative">
+                      <label className="text-[12px] font-medium text-[#1D1D1F] block mb-1.5">Assign To</label>
+                      <div
+                        className="flex items-center gap-1.5 border border-[#D1D1D6] rounded-lg px-2.5 py-2 cursor-pointer min-h-[38px] bg-white"
+                        onClick={() => setCreateFormData(prev => ({ ...prev, _assigneeOpen: !(prev as any)._assigneeOpen } as any))}
+                      >
+                        {createFormData.assigneeIds.length === 0 ? (
+                          <span className="text-[13px] text-[#86868B] flex-1">Unassigned</span>
+                        ) : (
+                          <div className="flex -space-x-1.5 flex-1">
+                            {createFormData.assigneeIds.slice(0, 3).map((uid, i) => {
+                              const u = users.find((u: any) => u.id === uid)
+                              const name = u?.full_name || u?.email || "?"
+                              return (
+                                <div key={uid} className="w-6 h-6 rounded-full bg-[#007AFF] text-white text-[9px] font-bold flex items-center justify-center border-2 border-white uppercase" title={name}>
+                                  {name.charAt(0)}
+                                </div>
+                              )
+                            })}
+                            {createFormData.assigneeIds.length > 3 && (
+                              <div className="w-6 h-6 rounded-full bg-[#E5E5E7] text-[#86868B] text-[9px] font-bold flex items-center justify-center border-2 border-white">
+                                +{createFormData.assigneeIds.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <ChevronDown className="w-3.5 h-3.5 text-[#86868B] flex-shrink-0" />
+                      </div>
+                      {(createFormData as any)._assigneeOpen && (
+                        <div className="absolute top-full left-0 mt-1 w-52 bg-white rounded-xl border border-[#E5E5E7] shadow-lg z-30 overflow-hidden">
+                          {users.map((u: any) => {
+                            const selected = createFormData.assigneeIds.includes(u.id)
+                            const name = u.full_name || u.email
+                            return (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => toggleAssignee(u.id)}
+                                className={cn("w-full flex items-center gap-2.5 px-3 py-2 text-[13px] hover:bg-[#F5F5F7] transition-colors", selected && "bg-[#EEF4FF]")}
+                              >
+                                <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold uppercase flex-shrink-0", selected ? "bg-[#007AFF] text-white" : "bg-[#E5E5E7] text-[#86868B]")}>
+                                  {name.charAt(0)}
+                                </div>
+                                <span className={cn("flex-1 text-left truncate", selected ? "font-medium text-[#007AFF]" : "text-[#1D1D1F]")}>{name}</span>
+                                {selected && <CheckIcon className="w-3.5 h-3.5 text-[#007AFF] flex-shrink-0" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Priority */}
+                    <div>
+                      <label className="text-[12px] font-medium text-[#1D1D1F] block mb-1.5">Priority</label>
+                      <div className="relative">
+                        <Flag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: priorityColor }} />
+                        <select
+                          value={createFormData.priority}
+                          onChange={(e) => setCreateFormData({ ...createFormData, priority: e.target.value as "low" | "medium" | "high" })}
+                          className="w-full text-[13px] font-medium border border-[#D1D1D6] rounded-lg pl-8 pr-8 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#007AFF] appearance-none bg-white"
+                          style={{ color: priorityColor }}
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#86868B] pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="text-[13px] font-medium text-[#1D1D1F] block mb-1.5">Description</label>
+                    <div className="border border-[#D1D1D6] rounded-lg overflow-hidden">
+                      {/* Toolbar */}
+                      <div className="flex items-center gap-0.5 px-3 py-2 border-b border-[#E5E5E7] bg-white">
+                        {[Bold, Italic, Underline].map((Icon, i) => (
+                          <button key={i} type="button" className="p-1.5 rounded hover:bg-[#F5F5F7] text-[#1D1D1F]"><Icon className="w-3.5 h-3.5" /></button>
+                        ))}
+                        <div className="w-px h-4 bg-[#E5E5E7] mx-1" />
+                        {[ListOrdered, List].map((Icon, i) => (
+                          <button key={i} type="button" className="p-1.5 rounded hover:bg-[#F5F5F7] text-[#1D1D1F]"><Icon className="w-3.5 h-3.5" /></button>
+                        ))}
+                        <div className="w-px h-4 bg-[#E5E5E7] mx-1" />
+                        {[Link, ImageIcon, AtSign, Smile].map((Icon, i) => (
+                          <button key={i} type="button" className="p-1.5 rounded hover:bg-[#F5F5F7] text-[#86868B]"><Icon className="w-3.5 h-3.5" /></button>
+                        ))}
+                      </div>
+                      <div className="relative">
+                        <textarea
+                          value={createFormData.description}
+                          onChange={(e) => setCreateFormData({ ...createFormData, description: e.target.value })}
+                          placeholder="Add description, notes, or requirements..."
+                          maxLength={2000}
+                          className="w-full text-[13px] text-[#1D1D1F] px-3 py-3 resize-none focus:outline-none min-h-[110px]"
+                          rows={5}
+                        />
+                        <span className="absolute bottom-2 right-3 text-[11px] text-[#86868B]">{createFormData.description.length}/2000</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Subtasks & Checklists */}
+                  <div className="border border-[#E5E5E7] rounded-xl overflow-hidden">
+                    {/* Section header */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#E5E5E7]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-semibold text-[#1D1D1F]">Subtasks &amp; Checklists</span>
+                        <div className="w-4 h-4 rounded-full border border-[#86868B] flex items-center justify-center text-[9px] text-[#86868B] font-bold cursor-help" title="Add subtasks to break work into smaller pieces">i</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {modalSubtasks.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-[#86868B]">Overall Progress</span>
+                            <div className="w-24 h-1.5 bg-[#E5E5E7] rounded-full overflow-hidden">
+                              <div className="h-full bg-[#007AFF] rounded-full" style={{ width: "0%" }} />
+                            </div>
+                            <span className="text-[11px] font-semibold text-[#007AFF]">0%</span>
+                          </div>
                         )}
                         <button
                           type="button"
-                          onClick={() => setModalSubtasks(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1 text-[#86868B] hover:text-[#FF3B30]"
+                          onClick={() => setShowAddSubtaskRow(true)}
+                          className="flex items-center gap-1 text-[12px] font-medium text-[#007AFF] hover:text-[#0051D5]"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <Plus className="w-3.5 h-3.5" /> Add Subtask
                         </button>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
 
-                {/* Add subtask row */}
-                {showAddSubtaskRow && (
-                  <div className="border border-[#E5E5E7] rounded-xl p-4 space-y-3 bg-[#FAFAFA]">
-                    <input
-                      type="text"
-                      placeholder="Subtask title"
-                      value={newSubtaskRow.title}
-                      onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, title: e.target.value }))}
-                      className="w-full text-sm bg-white border border-[#E5E5E7] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
-                      autoFocus
-                      onKeyDown={(e) => { if (e.key === "Escape") setShowAddSubtaskRow(false) }}
-                    />
+                    {/* Subtask list */}
+                    {modalSubtasks.length > 0 && (
+                      <div className="divide-y divide-[#F5F5F7]">
+                        {modalSubtasks.map((st, idx) => {
+                          const assigneeName = st.assigneeId ? (users.find((u: any) => u.id === st.assigneeId)?.full_name || "") : ""
+                          return (
+                            <div key={idx} className="flex items-center gap-3 px-4 py-3 bg-white hover:bg-[#FAFAFA]">
+                              <Circle className="w-4 h-4 text-[#86868B] flex-shrink-0" />
+                              <span className="text-[13px] text-[#1D1D1F] flex-1 truncate">{idx + 1}. {st.title}</span>
+                              {assigneeName && (
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-5 h-5 rounded-full bg-[#007AFF] text-white text-[9px] font-bold flex items-center justify-center uppercase">{assigneeName.charAt(0)}</div>
+                                  <span className="text-[11px] text-[#86868B]">{assigneeName}</span>
+                                </div>
+                              )}
+                              {st.dueDate && (
+                                <div className="flex items-center gap-1 text-[11px] text-[#86868B]">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{new Date(st.dueDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                                </div>
+                              )}
+                              <button type="button" onClick={() => setModalSubtasks(prev => prev.filter((_, i) => i !== idx))} className="p-1 text-[#86868B] hover:text-[#FF3B30]">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Add subtask inline row */}
+                    {showAddSubtaskRow && (
+                      <div className="px-4 py-3 border-t border-[#E5E5E7] bg-[#FAFAFA] space-y-2.5">
+                        <input
+                          type="text"
+                          placeholder="Subtask title"
+                          value={newSubtaskRow.title}
+                          onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, title: e.target.value }))}
+                          className="w-full text-[13px] border border-[#D1D1D6] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF] bg-white"
+                          autoFocus
+                          onKeyDown={(e) => { if (e.key === "Escape") setShowAddSubtaskRow(false) }}
+                        />
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="text-[11px] font-medium text-[#86868B] block mb-1">Due Date</label>
+                            <input type="date" value={newSubtaskRow.dueDate} onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, dueDate: e.target.value }))} className="w-full text-[12px] border border-[#D1D1D6] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#007AFF] bg-white" />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-medium text-[#86868B] block mb-1">Assign To</label>
+                            <select value={newSubtaskRow.assigneeId} onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, assigneeId: e.target.value }))} className="w-full text-[12px] border border-[#D1D1D6] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#007AFF] bg-white">
+                              <option value="">Unassigned</option>
+                              {users.map((u: any) => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" disabled={!newSubtaskRow.title.trim()} onClick={() => { if (!newSubtaskRow.title.trim()) return; setModalSubtasks(prev => [...prev, { ...newSubtaskRow }]); setNewSubtaskRow({ title: "", dueDate: "", assigneeId: "" }); setShowAddSubtaskRow(false) }} className="flex-1 text-[12px] font-semibold bg-[#007AFF] text-white rounded-lg py-1.5 hover:bg-[#0051D5] disabled:opacity-50">Add</button>
+                          <button type="button" onClick={() => { setShowAddSubtaskRow(false); setNewSubtaskRow({ title: "", dueDate: "", assigneeId: "" }) }} className="flex-1 text-[12px] font-semibold bg-[#F5F5F7] text-[#1D1D1F] rounded-lg py-1.5 hover:bg-[#E5E5E7]">Cancel</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {modalSubtasks.length === 0 && !showAddSubtaskRow && (
+                      <div className="px-4 py-4 text-center text-[12px] text-[#86868B]">No subtasks yet. Click &quot;+ Add Subtask&quot; to add one.</div>
+                    )}
+                  </div>
+
+                </div>
+
+                {/* ── RIGHT PANEL ── */}
+                <div className="w-[280px] flex-shrink-0 overflow-y-auto px-4 py-5 space-y-4 bg-white">
+
+                  {/* Timeline & Commitment */}
+                  <div className="border border-[#E5E5E7] rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-[#007AFF]" />
+                      <span className="text-[13px] font-semibold text-[#1D1D1F]">Timeline &amp; Commitment</span>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-medium text-[#86868B] block mb-1">Due Date</label>
-                        <input
-                          type="date"
-                          value={newSubtaskRow.dueDate}
-                          onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, dueDate: e.target.value }))}
-                          className="w-full text-sm bg-white border border-[#E5E5E7] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
-                        />
+                        <p className="text-[11px] text-[#86868B] mb-1">Internal Due Date</p>
+                        <input type="date" value={createFormData.dueDate} onChange={(e) => setCreateFormData({ ...createFormData, dueDate: e.target.value })} className="w-full text-[12px] border border-[#D1D1D6] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#007AFF]" />
+                        <input type="time" value={createFormData.dueTime} onChange={(e) => setCreateFormData({ ...createFormData, dueTime: e.target.value })} className="w-full mt-1 text-[11px] text-[#86868B] border border-[#D1D1D6] rounded-lg px-2 py-1 focus:outline-none" />
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-[#86868B] block mb-1">Assign To</label>
-                        <select
-                          value={newSubtaskRow.assigneeId}
-                          onChange={(e) => setNewSubtaskRow(prev => ({ ...prev, assigneeId: e.target.value }))}
-                          className="w-full text-sm bg-white border border-[#E5E5E7] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
-                        >
-                          <option value="">Unassigned</option>
-                          {users.map((u: any) => (
-                            <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
-                          ))}
-                        </select>
+                        <p className="text-[11px] font-medium text-[#FF3B30] mb-1">Client Promise Date <span className="text-[#FF3B30]">*</span></p>
+                        <input type="date" value={createFormData.promisedDate} onChange={(e) => setCreateFormData({ ...createFormData, promisedDate: e.target.value })} className="w-full text-[12px] border border-[#D1D1D6] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FF3B30]" />
+                        <input type="time" value={createFormData.promisedTime} onChange={(e) => setCreateFormData({ ...createFormData, promisedTime: e.target.value })} className="w-full mt-1 text-[11px] text-[#86868B] border border-[#D1D1D6] rounded-lg px-2 py-1 focus:outline-none" />
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={!newSubtaskRow.title.trim()}
-                        onClick={() => {
-                          if (!newSubtaskRow.title.trim()) return
-                          setModalSubtasks(prev => [...prev, { ...newSubtaskRow }])
-                          setNewSubtaskRow({ title: "", dueDate: "", assigneeId: "" })
-                          setShowAddSubtaskRow(false)
-                        }}
-                        className="flex-1 text-sm font-semibold bg-[#007AFF] text-white rounded-lg py-2 hover:bg-[#0051D5] disabled:opacity-50"
-                      >
-                        Add
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowAddSubtaskRow(false); setNewSubtaskRow({ title: "", dueDate: "", assigneeId: "" }) }}
-                        className="flex-1 text-sm font-semibold bg-[#F5F5F7] text-[#1D1D1F] rounded-lg py-2 hover:bg-[#E5E5E7]"
-                      >
-                        Cancel
-                      </button>
-                    </div>
                   </div>
-                )}
-              </div>
 
-              {/* Section 7: Attachments (Multiple) */}
-              <div className="space-y-3">
-                <div className="type-caption text-[#6B7280] uppercase tracking-wider font-semibold">Attachments</div>
-                <div>
-                  <label className="type-body font-medium text-[#1D1D1F] block mb-2">Upload Files (Optional)</label>
-                  <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#E5E5E7] rounded-xl hover:bg-[#F5F5F7] cursor-pointer transition-all bg-white">
-                    <Paperclip className="w-4 h-4 text-[#86868B]" />
-                    <span className="text-sm text-[#86868B]">Choose files (multiple allowed)</span>
-                    <input
-                      type="file"
-                      multiple
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || [])
-                        if (files.length > 0) {
-                          setCreateFormData(prev => ({ ...prev, attachments: [...prev.attachments, ...files] }))
-                          e.target.value = ""
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                  {createFormData.attachments.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {createFormData.attachments.map((file, idx) => (
-                        <div key={idx} className="flex items-center gap-2 bg-[#F5F5F7] rounded-lg px-3 py-1.5">
-                          <Paperclip className="w-3.5 h-3.5 text-[#86868B] flex-shrink-0" />
-                          <span className="text-xs text-[#1D1D1F] flex-1 truncate">{file.name}</span>
-                          <span className="text-xs text-[#86868B]">{(file.size / 1024).toFixed(0)} KB</span>
-                          <button
-                            type="button"
-                            onClick={() => setCreateFormData(prev => ({ ...prev, attachments: prev.attachments.filter((_, i) => i !== idx) }))}
-                            className="p-0.5 text-[#86868B] hover:text-[#FF3B30]"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                  {/* Buffer Time */}
+                  {bufferDays !== null && (
+                    <div className={cn("border rounded-xl p-3 flex items-center justify-between", isOnTrack ? "border-[#34C75933] bg-[#F0FFF4]" : "border-[#FF3B3033] bg-[#FFF0F0]")}>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className={cn("w-4 h-4", isOnTrack ? "text-[#34C759]" : "text-[#FF3B30]")} />
+                        <div>
+                          <p className={cn("text-[12px] font-semibold", isOnTrack ? "text-[#34C759]" : "text-[#FF3B30]")}>Buffer Time</p>
+                          <p className="text-[11px] text-[#86868B]">{isOnTrack ? "We will deliver before the client promise date." : "Promised date is before or same as due date."}</p>
                         </div>
-                      ))}
+                      </div>
+                      <span className={cn("text-[12px] font-bold", isOnTrack ? "text-[#34C759]" : "text-[#FF3B30]")}>{bufferDays} Days</span>
                     </div>
                   )}
-                </div>
-              </div>
 
-              {/* Section 7: Buffer Info */}
-              {createFormData.dueDate && createFormData.promisedDate && (
-                <div className={cn(
-                  "flex items-start gap-3 p-4 rounded-xl type-body",
-                  createFormData.promisedDate > createFormData.dueDate
-                    ? 'bg-emerald-50 border-2 border-emerald-200 text-emerald-800'
-                    : createFormData.promisedDate === createFormData.dueDate
-                    ? 'bg-amber-50 border-2 border-amber-200 text-amber-800'
-                    : 'bg-red-50 border-2 border-red-200 text-red-800'
-                )}>
-                  <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-semibold">
-                      {createFormData.promisedDate > createFormData.dueDate 
-                        ? `✓ ${Math.ceil((new Date(createFormData.promisedDate).getTime() - new Date(createFormData.dueDate).getTime()) / (1000 * 60 * 60 * 24))} days buffer for revisions`
-                        : createFormData.promisedDate === createFormData.dueDate
-                        ? "No buffer time for revisions"
-                        : "Promised date is before due date"}
-                    </p>
+                  {/* Task Health */}
+                  {bufferDays !== null && (
+                    <div className="border border-[#E5E5E7] rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🤍</span>
+                          <span className="text-[13px] font-semibold text-[#1D1D1F]">Task Health</span>
+                        </div>
+                        <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full", isOnTrack ? "bg-[#E8F8F0] text-[#34C759]" : "bg-[#FFF0F0] text-[#FF3B30]")}>
+                          {isOnTrack ? "On Track" : "At Risk"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-[12px] text-[#86868B] flex-1">
+                          {isOnTrack ? `Great! You have ` : "No buffer — "}
+                          {isOnTrack && <span className="text-[#34C759] font-semibold">{bufferDays} days</span>}
+                          {isOnTrack ? " buffer before the client promise." : "delivery is at risk."}
+                        </p>
+                        <div className="relative w-12 h-12 flex-shrink-0">
+                          <svg className="w-12 h-12 -rotate-90" viewBox="0 0 48 48">
+                            <circle cx="24" cy="24" r="20" fill="none" stroke="#E5E5E7" strokeWidth="4" />
+                            <circle cx="24" cy="24" r="20" fill="none" stroke={isOnTrack ? "#34C759" : "#FF3B30"} strokeWidth="4" strokeDasharray={`${Math.min(100, Math.max(0, (bufferDays / 7) * 100)) * 1.257} 125.7`} strokeLinecap="round" />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className={cn("text-[12px] font-bold leading-none", isOnTrack ? "text-[#34C759]" : "text-[#FF3B30]")}>{bufferDays}</span>
+                            <span className="text-[8px] text-[#86868B]">Days</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Templates */}
+                  <div className="border border-[#E5E5E7] rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <LayoutGrid className="w-4 h-4 text-[#86868B]" />
+                        <span className="text-[13px] font-semibold text-[#1D1D1F]">Quick Templates</span>
+                      </div>
+                      <button type="button" className="text-[11px] text-[#007AFF] font-medium hover:underline">View all</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {QUICK_TEMPLATES.map((t) => (
+                        <button
+                          key={t.label}
+                          type="button"
+                          onClick={() => setCreateFormData(prev => ({ ...prev, title: prev.title || t.label }))}
+                          className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-[#E5E5E7] hover:border-[#007AFF] hover:bg-[#EEF4FF] transition-colors text-left"
+                        >
+                          <span className="text-base leading-none">{t.icon}</span>
+                          <span className="text-[11px] font-medium text-[#1D1D1F] leading-tight">{t.label}</span>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg border border-dashed border-[#007AFF] hover:bg-[#EEF4FF] transition-colors text-left"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-[#007AFF]" />
+                        <span className="text-[11px] font-medium text-[#007AFF]">Custom Task</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-                </>
-              )}
-            </div>
-            </div>
 
-            {/* Create Modal Footer - Sticky */}
-            <div className="sticky bottom-0 bg-white border-t border-[#E5E5E7] px-8 py-4 flex items-center justify-between gap-3">
-              <div className="flex-1">
-                {!createFormData.title.trim() && (
-                  <p className="text-xs text-[#FF3B30]">Task title is required</p>
-                )}
-                {!createFormData.clientId && createFormData.title.trim() && (
-                  <p className="text-xs text-[#FF3B30]">Client selection is required</p>
-                )}
+                  {/* Tags */}
+                  <div className="border border-[#E5E5E7] rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Tag className="w-4 h-4 text-[#86868B]" />
+                      <span className="text-[13px] font-semibold text-[#1D1D1F]">Tags</span>
+                      <span className="text-[11px] text-[#86868B]">(Optional)</span>
+                    </div>
+                    {createFormData.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {createFormData.tags.map((t) => (
+                          <span key={t} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F5F5F7] border border-[#E5E5E7] text-[11px] text-[#1D1D1F] font-medium">
+                            {t}
+                            <button type="button" onClick={() => removeTag(t)} className="text-[#86868B] hover:text-[#FF3B30]"><X className="w-3 h-3" /></button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="+ Add Tag"
+                        className="flex-1 text-[12px] text-[#007AFF] placeholder-[#007AFF] bg-transparent border-none outline-none"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === ",") {
+                            e.preventDefault()
+                            addTag((e.target as HTMLInputElement).value);
+                            (e.target as HTMLInputElement).value = ""
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-6 py-2.5 type-body font-medium text-[#86868B] hover:bg-[#F5F5F7] rounded-lg transition-colors"
-                >
-                  Cancel
+
+              {/* ── Footer ── */}
+              <div className="flex items-center justify-between px-6 py-3.5 border-t border-[#E5E5E7] bg-white">
+                <button type="button" className="flex items-center gap-2 text-[12px] text-[#86868B] font-medium hover:text-[#1D1D1F] transition-colors">
+                  <Paperclip className="w-3.5 h-3.5" />
+                  Save as Template
                 </button>
-                <button
-                  onClick={handleCreateTask}
-                  disabled={!createFormData.title.trim() || !createFormData.clientId || isCreating}
-                  className="px-6 py-2.5 type-body font-medium text-white bg-[#007AFF] hover:bg-[#0051D5] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                  title={!createFormData.title.trim() ? "Enter a task title" : !createFormData.clientId ? "Select a client" : "Create task"}
-                >
-                  {isCreating ? "Creating..." : "Create Task"}
-                </button>
+                <div className="flex items-center gap-2.5">
+                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-5 py-2 text-[13px] font-medium text-[#1D1D1F] border border-[#D1D1D6] rounded-lg hover:bg-[#F5F5F7] transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!createFormData.title.trim() || !createFormData.clientId || isCreating}
+                    onClick={handleCreateTask}
+                    className="px-4 py-2 text-[13px] font-medium text-[#1D1D1F] border border-[#D1D1D6] rounded-lg hover:bg-[#F5F5F7] transition-colors disabled:opacity-40"
+                    title="Save and create another task"
+                  >
+                    Save &amp; Create Another
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!createFormData.title.trim() || !createFormData.clientId || isCreating}
+                    onClick={handleCreateTask}
+                    className="px-5 py-2 text-[13px] font-semibold text-white bg-[#007AFF] hover:bg-[#0051D5] rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Task"}
+                  </button>
+                </div>
               </div>
+
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
