@@ -21,6 +21,14 @@ import {
   ChevronDown,
   X,
   Check,
+  LayoutGrid,
+  MessageSquare,
+  Users,
+  FileText,
+  Radio,
+  MessageCircle,
+  HelpCircle,
+  Phone,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -57,32 +65,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// ── Deliverable type icon ─────────────────────────────────────────────────────
-function TypeIcon({ type }: { type: string }) {
-  const base = "w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-  if (type === "PDF")   return <div className={cn(base, "bg-[#FFF0F0] text-[#EF4444]")}>PDF</div>
-  if (type === "Video") return <div className={cn(base, "bg-[#FFF0F0] text-[#EF4444]")}><Youtube className="w-4 h-4" /></div>
-  if (type === "Image") return <div className={cn(base, "bg-[#FFF7F0] text-[#F97316]")}><Instagram className="w-4 h-4" /></div>
-  return <div className={cn(base, "bg-[#F0F6FF] text-[#3B82F6]")}>F</div>
-}
-
-// ── Social row ────────────────────────────────────────────────────────────────
-function SocialRow({ icon, label, count, unit }: { icon: React.ReactNode; label: string; count: number; unit: string }) {
-  return (
-    <div className="flex items-center justify-between py-2.5 border-b border-[#F5F5F7] last:border-0">
-      <div className="flex items-center gap-2.5">
-        {icon}
-        <span className="text-[13px] text-[#1D1D1F]">{label}</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="text-[15px] font-bold text-[#1D1D1F]">{count}</span>
-        <span className="text-[12px] text-[#86868B]">{unit}</span>
-      </div>
-    </div>
-  )
-}
-
-// ── View All Modal ────────────────────────────────────────────────────────────
+// ── View All Modal ────────────────────────────────────────────────────────
 function ViewAllModal({ title, items, renderItem, onClose }: {
   title: string
   items: any[]
@@ -109,10 +92,11 @@ function ViewAllModal({ title, items, renderItem, onClose }: {
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Main page with sidebar layout ──────────────────────────────────────────
 export default function ClientPortalPage() {
-  const [selectedSprintId, setSelectedSprintId] = useState<string>("") // empty = auto
+  const [selectedSprintId, setSelectedSprintId] = useState<string>("")
   const [sprintDropdownOpen, setSprintDropdownOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<"board" | "next" | "monthly" | "timeline" | "documents">("board")
   const swrKey = selectedSprintId ? `/api/client-portal?sprintId=${selectedSprintId}` : "/api/client-portal"
   const { data, isLoading } = useSWR(swrKey, fetcher, { revalidateOnFocus: false })
   const [viewAll, setViewAll] = useState<string | null>(null)
@@ -148,16 +132,15 @@ export default function ClientPortalPage() {
   const {
     client,
     userName,
-    allSprints       = [],
+    allSprints = [],
     currentSprint,
     nextSprint,
-    completedTasks   = [],
-    inProgressTasks  = [],
-    attentionTasks   = [],
-    meetings         = [],
-    deliverables     = [],
-    socialCounts     = {},
-    project          = {},
+    completedTasks = [],
+    inProgressTasks = [],
+    attentionTasks = [],
+    meetings = [],
+    deliverables = [],
+    socialCounts = {},
   } = data
 
   // ── Copy Report ──────────────────────────────────────────────────────────
@@ -171,7 +154,7 @@ export default function ClientPortalPage() {
         ? `${currentSprint.name}: ${fmtShort(currentSprint.startDate)} – ${fmtShort(currentSprint.endDate)}`
         : "No active sprint",
       `Progress: ${currentSprint?.completionPct ?? 0}%`,
-      `Completed: ${currentSprint?.completed ?? 0}  In Progress: ${currentSprint?.inProgress ?? 0}  Pending: ${currentSprint?.pending ?? 0}  Delayed: ${currentSprint?.delayed ?? 0}`,
+      `Completed: ${currentSprint?.completed ?? 0}  In Progress: ${currentSprint?.inProgress ?? 0}  Waiting: ${attentionTasks.length}`,
       "",
       `== What We've Done ==`,
       ...completedTasks.map((t: any) => `✓ ${t.title}`),
@@ -179,14 +162,8 @@ export default function ClientPortalPage() {
       `== In Progress ==`,
       ...inProgressTasks.map((t: any) => `• ${t.title}`),
       "",
-      `== Needs Attention ==`,
+      `== Needs Your Input ==`,
       ...attentionTasks.map((t: any) => `! ${t.title} — ${t.reason}`),
-      "",
-      `== Next Sprint Plan ==`,
-      nextSprint
-        ? `${nextSprint.name}: ${fmtShort(nextSprint.startDate)} – ${fmtShort(nextSprint.endDate)}`
-        : "No upcoming sprint",
-      ...(nextSprint?.tasks || []).map((t: any) => `  ${t.title}`),
     ]
     navigator.clipboard.writeText(lines.join("\n")).then(() => {
       setCopied(true)
@@ -194,12 +171,16 @@ export default function ClientPortalPage() {
     })
   }
 
-  // ── Download PDF (print to PDF via browser) ───────────────────────────────
   const handleDownloadPDF = () => {
     window.print()
   }
 
-  // ── View All modal config ────────────────────────────────────────────────
+  // Kanban board columns
+  const waitingForClient = attentionTasks.filter(t => t.reason === "Awaiting content approval").length
+  const inReview = attentionTasks.filter(t => t.reason === "Awaiting client approval").length
+  const done = completedTasks.length
+
+  // Modal configs
   const viewAllConfig: Record<string, { title: string; items: any[]; render: (item: any) => React.ReactNode }> = {
     completed: {
       title: "All Completed Items",
@@ -222,7 +203,7 @@ export default function ClientPortalPage() {
       ),
     },
     attention: {
-      title: "All Delayed Items",
+      title: "All Items Needing Input",
       items: attentionTasks,
       render: (t: any) => (
         <div>
@@ -230,48 +211,7 @@ export default function ClientPortalPage() {
             <div className="w-2 h-2 rounded-full bg-[#EF4444] flex-shrink-0" />
             <span className="text-[13px] font-semibold text-[#1D1D1F]">{t.title}</span>
           </div>
-          <p className="text-[11px] text-[#86868B] ml-4">Reason: {t.reason}</p>
-        </div>
-      ),
-    },
-    meetings: {
-      title: "All Meetings & MOMs",
-      items: meetings,
-      render: (m: any) => (
-        <div className="flex items-start gap-2.5 py-2 border-b border-[#F5F5F7] last:border-0">
-          <div className="w-7 h-7 bg-[#F5F5F7] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-            <Calendar className="w-3.5 h-3.5 text-[#86868B]" />
-          </div>
-          <div>
-            <div className="text-[13px] font-medium text-[#1D1D1F]">{m.title}</div>
-            <div className="text-[11px] text-[#86868B]">{fmtMeetingDate(m.date, m.time)}</div>
-          </div>
-        </div>
-      ),
-    },
-    nextplan: {
-      title: "Full Sprint Plan",
-      items: nextSprint?.tasks || [],
-      render: (t: any) => (
-        <div className="flex items-center gap-2">
-          <div className="w-3.5 h-3.5 border border-[#D1D1D6] rounded flex-shrink-0" />
-          <span className="text-[13px] text-[#1D1D1F]">{t.title}</span>
-        </div>
-      ),
-    },
-    deliverables: {
-      title: "All Deliverables",
-      items: deliverables,
-      render: (d: any) => (
-        <div className="flex items-center justify-between py-2 border-b border-[#F5F5F7] last:border-0">
-          <div className="flex items-center gap-2.5">
-            <TypeIcon type={d.type} />
-            <span className="text-[13px] text-[#1D1D1F]">{d.name}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={d.status} />
-            <span className="text-[11px] text-[#86868B]">{fmtShort(d.date)}</span>
-          </div>
+          <p className="text-[11px] text-[#86868B] ml-4">Status: {t.reason}</p>
         </div>
       ),
     },
@@ -282,429 +222,462 @@ export default function ClientPortalPage() {
   return (
     <AuthGuard>
       <RoleBasedLayout userRole="client">
-        <div className="min-h-screen bg-[#F8F9FB] pb-10 print:bg-white" ref={reportRef}>
-          <div className="w-full px-6 pt-6">
-
-            {/* ── Header ── */}
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h1 className="text-[22px] font-bold text-[#1D1D1F] flex items-center gap-2">
-                  Welcome, {client?.name || userName}! <span>👋</span>
-                </h1>
-                <p className="text-[13px] text-[#86868B] mt-0.5">{"Here's what's happening with your project."}</p>
-                {/* Sprint selector */}
-                {allSprints.length > 0 && (
-                  <div className="relative mt-3 inline-block print:hidden">
-                    <button
-                      onClick={() => setSprintDropdownOpen((o) => !o)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#D1D1D6] bg-white text-[13px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
-                    >
-                      <Calendar className="w-3.5 h-3.5 text-[#007AFF]" />
-                      {selectedSprintId === "all"
-                        ? "All Sprints"
-                        : selectedSprintId
-                          ? (allSprints.find((s: any) => s.id === selectedSprintId)?.name || "Select Sprint")
-                          : (currentSprint?.name || "Select Sprint")}
-                      <ChevronDown className="w-3.5 h-3.5 text-[#86868B]" />
-                    </button>
-                    {sprintDropdownOpen && (
-                      <div
-                        className="absolute left-0 top-full mt-1 w-64 bg-white rounded-xl border border-[#E5E5E7] shadow-lg z-20 overflow-hidden"
-                        onMouseLeave={() => setSprintDropdownOpen(false)}
-                      >
-                        <button
-                          onClick={() => { setSelectedSprintId("all"); setSprintDropdownOpen(false) }}
-                          className={cn(
-                            "w-full text-left px-4 py-2.5 text-[13px] hover:bg-[#F5F5F7] transition-colors border-b border-[#F5F5F7]",
-                            selectedSprintId === "all" ? "font-semibold text-[#007AFF]" : "text-[#1D1D1F]"
-                          )}
-                        >
-                          All Sprints
-                        </button>
-                        {allSprints.map((s: any) => (
-                          <button
-                            key={s.id}
-                            onClick={() => { setSelectedSprintId(s.id); setSprintDropdownOpen(false) }}
-                            className={cn(
-                              "w-full text-left px-4 py-2.5 text-[13px] hover:bg-[#F5F5F7] transition-colors",
-                              selectedSprintId === s.id || (!selectedSprintId && s.id === currentSprint?.id)
-                                ? "font-semibold text-[#007AFF]"
-                                : "text-[#1D1D1F]"
-                            )}
-                          >
-                            <div className="font-medium">{s.name}</div>
-                            <div className="text-[11px] text-[#86868B]">{fmtShort(s.startDate)} – {fmtShort(s.endDate)}</div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 print:hidden">
-                <button
-                  onClick={handleCopyReport}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D1D1D6] bg-white text-[13px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-[#12B76A]" /> : <Copy className="w-3.5 h-3.5 text-[#007AFF]" />}
-                  {copied ? "Copied!" : "Copy Client Report"}
-                </button>
-                <button
-                  onClick={handleDownloadPDF}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D1D1D6] bg-white text-[13px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5 text-[#EF4444]" />
-                  Download PDF
-                </button>
-                <button
-                  onClick={() => {
-                    if (navigator.share) {
-                      navigator.share({ title: `Client Report — ${client?.name}`, url: window.location.href })
-                    } else {
-                      navigator.clipboard.writeText(window.location.href)
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D1D1D6] bg-white text-[13px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-[#12B76A]" />
-                  Share
-                </button>
+        <div className="flex h-screen bg-[#F8F9FB] print:bg-white overflow-hidden" ref={reportRef}>
+          
+          {/* ── LEFT SIDEBAR ── */}
+          <div className="w-56 bg-white border-r border-[#E5E5E7] flex flex-col print:hidden overflow-y-auto">
+            {/* Sidebar header */}
+            <div className="p-4 border-b border-[#E5E5E7]">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-[#007AFF] flex items-center justify-center">
+                  <span className="text-white font-bold text-[12px]">{client?.name?.[0] || "C"}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-[#1D1D1F] truncate">{client?.name || "Client"}</div>
+                  <div className="text-[11px] text-[#86868B]">Client Portal</div>
+                </div>
               </div>
             </div>
 
-            {/* ── Row 1: Current Sprint + Timeline ── */}
-            <div className="grid grid-cols-5 gap-4 mb-4">
-              {/* Current Sprint card */}
-              <div className="col-span-3 bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[12px] font-medium text-[#86868B]">Current Sprint</span>
-                  <StatusBadge status={currentSprint?.status || "On Track"} />
-                </div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-[17px] font-bold text-[#1D1D1F]">
-                    {currentSprint
-                      ? `${currentSprint.name}: ${fmtShort(currentSprint.startDate)} – ${fmtShort(currentSprint.endDate)}`
-                      : "No active sprint"}
-                  </h2>
-                  <span className="text-[13px] font-bold text-[#12B76A]">{currentSprint?.completionPct ?? 0}% Complete</span>
-                </div>
-                <div className="w-full h-2 bg-[#E5E5E7] rounded-full mb-4">
-                  <div className="h-2 bg-[#12B76A] rounded-full transition-all" style={{ width: `${currentSprint?.completionPct ?? 0}%` }} />
-                </div>
-                <div className="grid grid-cols-4 gap-3 mb-4">
-                  {[
-                    { label: "Completed",   val: currentSprint?.completed ?? 0,  color: "text-[#1D1D1F]" },
-                    { label: "In Progress", val: currentSprint?.inProgress ?? 0, color: "text-[#007AFF]" },
-                    { label: "Pending",     val: currentSprint?.pending ?? 0,    color: "text-[#86868B]" },
-                    { label: "Delayed",     val: currentSprint?.delayed ?? 0,    color: "text-[#EF4444]" },
-                  ].map((s) => (
-                    <div key={s.label}>
-                      <div className={cn("text-[22px] font-bold", s.color)}>{s.val}</div>
-                      <div className="text-[11px] text-[#86868B]">{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-                <button className="flex items-center gap-1 text-[13px] font-semibold text-[#007AFF] hover:underline">
-                  View Current Sprint <ArrowRight className="w-3.5 h-3.5" />
+            {/* Portal menu */}
+            <div className="flex-1 p-3 space-y-1">
+              <div className="px-2 py-1.5 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Portal</div>
+              {[
+                { id: "board", label: "Sprint Board", icon: LayoutGrid },
+                { id: "next", label: "Next Sprint", icon: Calendar },
+                { id: "monthly", label: "Monthly Review", icon: FileText },
+                { id: "timeline", label: "Timeline", icon: Radio },
+                { id: "documents", label: "Documents", icon: FileText },
+              ].map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id as any)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors",
+                    activeTab === id
+                      ? "bg-[#EEF4FF] text-[#007AFF]"
+                      : "text-[#1D1D1F] hover:bg-[#F5F5F7]"
+                  )}
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{label}</span>
                 </button>
-              </div>
+              ))}
+            </div>
 
-              {/* Sprint Timeline card */}
-              <div className="col-span-2 bg-white rounded-xl border border-[#E5E5E7] p-5 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Calendar className="w-4 h-4 text-[#007AFF]" />
-                    <span className="text-[13px] font-semibold text-[#1D1D1F]">Sprint Timeline</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mb-5">
-                    <div>
-                      <div className="text-[11px] text-[#86868B] mb-1">Start Date</div>
-                      <div className="text-[14px] font-bold text-[#1D1D1F]">{fmtShort(currentSprint?.startDate)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[11px] text-[#86868B] mb-1">End Date</div>
-                      <div className="text-[14px] font-bold text-[#1D1D1F]">{fmtShort(currentSprint?.endDate)}</div>
-                    </div>
-                  </div>
+            {/* Communication menu */}
+            <div className="border-t border-[#E5E5E7] p-3 space-y-1">
+              <div className="px-2 py-1.5 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Communication</div>
+              {[
+                { label: "Weekly Meetings", icon: MessageSquare },
+                { label: "Messages", icon: MessageCircle },
+              ].map(({ label, icon: Icon }) => (
+                <button
+                  key={label}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Help section */}
+            <div className="border-t border-[#E5E5E7] p-3">
+              <div className="bg-[#F5F5F7] rounded-lg p-3 text-center">
+                <div className="w-8 h-8 mx-auto mb-2 bg-white rounded-full flex items-center justify-center">
+                  <Users className="w-4 h-4 text-[#86868B]" />
                 </div>
-                <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-xl p-3 flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-[#12B76A] flex-shrink-0" />
+                <div className="text-[12px] font-semibold text-[#1D1D1F] mb-2">Need anything?</div>
+                <p className="text-[11px] text-[#86868B] mb-2">{"We're here to help you"}</p>
+                <button className="w-full text-[11px] font-semibold text-[#007AFF] hover:underline">Message Us</button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── MAIN CONTENT ── */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="min-h-full flex flex-col">
+              
+              {/* Top header with sprint selector and actions */}
+              <div className="bg-white border-b border-[#E5E5E7] p-4 flex items-center justify-between print:hidden">
+                <div className="flex items-center gap-4">
                   <div>
-                    <div className="text-[13px] font-semibold text-[#1D1D1F]">
-                      {currentSprint?.daysRemaining ?? 0} days remaining
-                    </div>
-                    <div className="text-[11px] text-[#86868B]">{"We're on track to deliver on time!"}</div>
+                    <h1 className="text-[18px] font-bold text-[#1D1D1F]">{client?.name || userName}</h1>
+                    <p className="text-[12px] text-[#86868B]">Client Portal</p>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Row 2: Done / In Progress / Needs Attention ── */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              {/* What we've done */}
-              <div className="bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
-                  <span className="text-[13px] font-semibold text-[#1D1D1F]">What We&apos;ve Done This Sprint</span>
-                </div>
-                <div className="space-y-2">
-                  {completedTasks.length === 0 && <p className="text-[12px] text-[#86868B]">No completed tasks yet</p>}
-                  {completedTasks.slice(0, 6).map((t: any) => (
-                    <div key={t.id} className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#12B76A] flex-shrink-0" />
-                      <span className="text-[13px] text-[#1D1D1F]">{t.title}</span>
-                    </div>
-                  ))}
-                </div>
-                {completedTasks.length > 0 && (
-                  <button
-                    onClick={() => setViewAll("completed")}
-                    className="flex items-center gap-1 mt-3 text-[12px] font-semibold text-[#007AFF] hover:underline"
-                  >
-                    View All Completed Items <ArrowRight className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* In Progress */}
-              <div className="bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock className="w-4 h-4 text-[#F97316]" />
-                  <span className="text-[13px] font-semibold text-[#1D1D1F]">In Progress</span>
-                </div>
-                <div className="space-y-2">
-                  {inProgressTasks.length === 0 && <p className="text-[12px] text-[#86868B]">No tasks in progress</p>}
-                  {inProgressTasks.slice(0, 6).map((t: any) => (
-                    <div key={t.id} className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-[#F97316] flex-shrink-0" />
-                      <span className="text-[13px] text-[#1D1D1F]">{t.title}</span>
-                    </div>
-                  ))}
-                </div>
-                {inProgressTasks.length > 0 && (
-                  <button
-                    onClick={() => setViewAll("inprogress")}
-                    className="flex items-center gap-1 mt-3 text-[12px] font-semibold text-[#007AFF] hover:underline"
-                  >
-                    View All In Progress <ArrowRight className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* Needs Attention */}
-              <div className="bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <AlertCircle className="w-4 h-4 text-[#EF4444]" />
-                  <span className="text-[13px] font-semibold text-[#1D1D1F]">Needs Attention</span>
-                </div>
-                <div className="space-y-3">
-                  {attentionTasks.length === 0 && <p className="text-[12px] text-[#86868B]">No items need attention</p>}
-                  {attentionTasks.slice(0, 4).map((t: any, i: number) => (
-                    <div key={t.id || i}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-[#EF4444] flex-shrink-0" />
-                        <span className="text-[13px] font-semibold text-[#1D1D1F]">{t.title}</span>
-                      </div>
-                      <p className="text-[11px] text-[#86868B] ml-4">Reason: {t.reason}</p>
-                    </div>
-                  ))}
-                </div>
-                {attentionTasks.length > 0 && (
-                  <button
-                    onClick={() => setViewAll("attention")}
-                    className="flex items-center gap-1 mt-3 text-[12px] font-semibold text-[#EF4444] hover:underline"
-                  >
-                    View All Delayed Items <ArrowRight className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ── Row 3: Next Sprint Plan + Meetings + Social ── */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              {/* Next Sprint Plan */}
-              <div className="bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-4 h-4 text-[#7C3AED]" />
-                  <span className="text-[13px] font-semibold text-[#1D1D1F]">
-                    Next Sprint Plan
-                    {nextSprint && (
-                      <span className="ml-1 font-normal text-[#86868B]">
-                        ({fmtShort(nextSprint.startDate)} – {fmtShort(nextSprint.endDate)})
-                      </span>
-                    )}
-                  </span>
-                </div>
-                {!nextSprint ? (
-                  <p className="text-[12px] text-[#86868B]">No upcoming sprint planned</p>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      {nextSprint.tasks.slice(0, 6).map((t: any) => (
-                        <div key={t.id} className="flex items-center gap-2">
-                          <div className="w-3.5 h-3.5 border border-[#D1D1D6] rounded flex-shrink-0" />
-                          <span className="text-[13px] text-[#1D1D1F]">{t.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => setViewAll("nextplan")}
-                      className="flex items-center gap-1 mt-3 text-[12px] font-semibold text-[#007AFF] hover:underline"
-                    >
-                      View Full Plan <ArrowRight className="w-3 h-3" />
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Recent Meetings & MOMs */}
-              <div className="bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-[#86868B]" />
-                    <span className="text-[13px] font-semibold text-[#1D1D1F]">Recent Meetings &amp; MOMs</span>
-                  </div>
-                  <button
-                    onClick={() => setViewAll("meetings")}
-                    className="flex items-center gap-0.5 text-[12px] text-[#007AFF] hover:underline font-medium"
-                  >
-                    View All <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-                {meetings.length === 0 && <p className="text-[12px] text-[#86868B]">No meetings recorded</p>}
-                <div className="space-y-3">
-                  {meetings.slice(0, 3).map((m: any) => (
-                    <div key={m.id} className="flex items-center justify-between py-2 border-b border-[#F5F5F7] last:border-0">
-                      <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                        <div className="w-7 h-7 bg-[#F5F5F7] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Calendar className="w-3.5 h-3.5 text-[#86868B]" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-[13px] font-medium text-[#1D1D1F] truncate">{m.title}</div>
-                          <div className="text-[11px] text-[#86868B]">{fmtMeetingDate(m.date, m.time)}</div>
-                        </div>
-                      </div>
-                      <button className="ml-2 px-2.5 py-1 bg-[#F0F6FF] text-[#007AFF] text-[11px] font-semibold rounded-lg hover:bg-[#E0EDFF] flex-shrink-0">
-                        View MOM
+                  {allSprints.length > 0 && (
+                    <div className="relative inline-block">
+                      <button
+                        onClick={() => setSprintDropdownOpen(!sprintDropdownOpen)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#D1D1D6] bg-white text-[12px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
+                      >
+                        <Calendar className="w-3.5 h-3.5 text-[#007AFF]" />
+                        {selectedSprintId === "all"
+                          ? "All Sprints"
+                          : selectedSprintId
+                            ? (allSprints.find((s: any) => s.id === selectedSprintId)?.name || "Select")
+                            : (currentSprint?.name || "Select Sprint")}
+                        <ChevronDown className="w-3.5 h-3.5 text-[#86868B]" />
                       </button>
+                      {sprintDropdownOpen && (
+                        <div className="absolute left-0 top-full mt-1 w-64 bg-white rounded-xl border border-[#E5E5E7] shadow-lg z-20 overflow-hidden">
+                          <button
+                            onClick={() => { setSelectedSprintId("all"); setSprintDropdownOpen(false) }}
+                            className={cn("w-full text-left px-4 py-2.5 text-[12px] hover:bg-[#F5F5F7] transition-colors", selectedSprintId === "all" ? "font-semibold text-[#007AFF]" : "text-[#1D1D1F]")}
+                          >
+                            All Sprints
+                          </button>
+                          {allSprints.map((s: any) => (
+                            <button
+                              key={s.id}
+                              onClick={() => { setSelectedSprintId(s.id); setSprintDropdownOpen(false) }}
+                              className={cn("w-full text-left px-4 py-2.5 text-[12px] hover:bg-[#F5F5F7] transition-colors", selectedSprintId === s.id || (!selectedSprintId && s.id === currentSprint?.id) ? "font-semibold text-[#007AFF]" : "text-[#1D1D1F]")}
+                            >
+                              <div className="font-medium">{s.name}</div>
+                              <div className="text-[11px] text-[#86868B]">{fmtShort(s.startDate)} – {fmtShort(s.endDate)}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyReport}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#D1D1D6] bg-white text-[12px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-[#12B76A]" /> : <Copy className="w-3.5 h-3.5 text-[#007AFF]" />}
+                    Copy Weekly Update
+                  </button>
+                  <button
+                    onClick={() => navigator.share ? navigator.share({ title: `Client Report — ${client?.name}`, url: window.location.href }) : navigator.clipboard.writeText(window.location.href)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#007AFF] text-white text-[12px] font-medium hover:bg-[#0051D5] transition-colors"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    Share Client View
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab navigation */}
+              <div className="bg-white border-b border-[#E5E5E7] px-4 print:hidden">
+                <div className="flex items-center gap-4">
+                  {[
+                    { id: "board", label: "Sprint Board" },
+                    { id: "next", label: "Next Sprint" },
+                    { id: "monthly", label: "Monthly Review" },
+                    { id: "timeline", label: "Timeline" },
+                    { id: "documents", label: "Documents" },
+                  ].map(({ id, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => setActiveTab(id as any)}
+                      className={cn(
+                        "px-4 py-3 text-[13px] font-medium border-b-2 transition-colors",
+                        activeTab === id
+                          ? "border-[#007AFF] text-[#007AFF]"
+                          : "border-transparent text-[#86868B] hover:text-[#1D1D1F]"
+                      )}
+                    >
+                      {label}
+                    </button>
                   ))}
                 </div>
               </div>
 
-              {/* Social Media This Sprint */}
-              <div className="bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[13px] font-semibold text-[#1D1D1F]">Social Media This Sprint</span>
-                  <button className="flex items-center gap-0.5 text-[12px] text-[#007AFF] hover:underline font-medium">
-                    View All <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-                <SocialRow
-                  icon={<div className="w-6 h-6 rounded bg-gradient-to-br from-[#E1306C] to-[#F77737] flex items-center justify-center"><Instagram className="w-3.5 h-3.5 text-white" /></div>}
-                  label="Instagram"
-                  count={socialCounts.instagram ?? 0}
-                  unit="Posts"
-                />
-                <SocialRow
-                  icon={<div className="w-6 h-6 rounded bg-[#0077B5] flex items-center justify-center"><Linkedin className="w-3.5 h-3.5 text-white" /></div>}
-                  label="LinkedIn"
-                  count={socialCounts.linkedin ?? 0}
-                  unit="Posts"
-                />
-                <SocialRow
-                  icon={<div className="w-6 h-6 rounded bg-[#EF4444] flex items-center justify-center"><Youtube className="w-3.5 h-3.5 text-white" /></div>}
-                  label="YouTube"
-                  count={socialCounts.youtube ?? 0}
-                  unit="Videos"
-                />
-                <SocialRow
-                  icon={<div className="w-6 h-6 rounded bg-[#1D1D1F] flex items-center justify-center"><span className="text-white text-[9px] font-bold">R</span></div>}
-                  label="Reels"
-                  count={socialCounts.reels ?? 0}
-                  unit="Reels"
-                />
-                <button className="flex items-center gap-1 mt-3 text-[12px] font-semibold text-[#007AFF] hover:underline">
-                  View Creatives &amp; Captions <ArrowRight className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-
-            {/* ── Row 4: Deliverables + Project Overview ── */}
-            <div className="grid grid-cols-5 gap-4">
-              {/* Latest Deliverables */}
-              <div className="col-span-3 bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[14px] font-semibold text-[#1D1D1F]">Latest Deliverables</span>
-                  <button
-                    onClick={() => setViewAll("deliverables")}
-                    className="flex items-center gap-0.5 text-[12px] text-[#007AFF] hover:underline font-medium"
-                  >
-                    View All <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-                {deliverables.length === 0 ? (
-                  <p className="text-[12px] text-[#86868B]">No deliverables uploaded yet for completed tasks</p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-[1fr_80px_90px_120px] pb-2 mb-1">
-                      <span className="text-[11px] text-[#86868B] font-medium"></span>
-                      <span className="text-[11px] text-[#86868B] font-medium">Type</span>
-                      <span className="text-[11px] text-[#86868B] font-medium">Status</span>
-                      <span className="text-[11px] text-[#86868B] font-medium">Date</span>
-                    </div>
-                    <div className="space-y-1">
-                      {deliverables.slice(0, 6).map((d: any) => (
-                        <div key={d.id} className="grid grid-cols-[1fr_80px_90px_120px] items-center py-2.5 border-b border-[#F5F5F7] last:border-0">
-                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                            <TypeIcon type={d.type} />
-                            <span className="text-[13px] text-[#1D1D1F] truncate">{d.name}</span>
+              {/* Content area */}
+              <div className="flex-1 p-4 overflow-y-auto">
+                {activeTab === "board" && (
+                  <div className="space-y-4">
+                    {/* Kanban board */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-[16px] font-bold text-[#1D1D1F]">
+                          Current Sprint
+                          {currentSprint && (
+                            <span className="ml-2 text-[13px] font-normal text-[#86868B]">
+                              {fmtShort(currentSprint.startDate)} – {fmtShort(currentSprint.endDate)}
+                            </span>
+                          )}
+                        </h2>
+                        {currentSprint && (
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-4">
+                              {[
+                                { label: "Waiting For Client", count: waitingForClient, color: "#EF4444" },
+                                { label: "In Progress", count: currentSprint.inProgress, color: "#F97316" },
+                                { label: "Review", count: inReview, color: "#F59E0B" },
+                                { label: "Done", count: done, color: "#12B76A" },
+                              ].map(s => (
+                                <div key={s.label} className="text-center">
+                                  <div className="text-[18px] font-bold" style={{ color: s.color }}>{s.count}</div>
+                                  <div className="text-[11px] text-[#86868B]">{s.label}</div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <span className="text-[13px] text-[#86868B]">{d.type}</span>
-                          <StatusBadge status={d.status} />
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#86868B]">
-                            <span>{fmtShort(d.date)}</span>
-                            {d.url && (
-                              <a href={d.url} target="_blank" rel="noopener noreferrer" className="hover:text-[#007AFF]">
-                                <Download className="w-3.5 h-3.5" />
-                              </a>
-                            )}
+                        )}
+                      </div>
+
+                      {/* Kanban columns */}
+                      <div className="grid grid-cols-4 gap-4">
+                        {/* Waiting For Client */}
+                        <div className="bg-white rounded-lg border border-[#E5E5E7]">
+                          <div className="px-4 py-3 border-b border-[#E5E5E7]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 rounded-full bg-[#EF4444]" />
+                              <span className="text-[13px] font-semibold text-[#1D1D1F]">Waiting For Client</span>
+                            </div>
+                            <span className="text-[11px] text-[#86868B]">{waitingForClient} items</span>
+                          </div>
+                          <div className="p-3 space-y-2 min-h-[300px]">
+                            {attentionTasks
+                              .filter(t => t.reason === "Awaiting content approval")
+                              .map((t, i) => (
+                                <div key={i} className="bg-[#FFF0F0] border border-[#FED7AA] rounded-lg p-3">
+                                  <p className="text-[12px] font-medium text-[#1D1D1F] mb-1">{t.title}</p>
+                                  <p className="text-[11px] text-[#86868B]">{t.reason}</p>
+                                </div>
+                              ))}
                           </div>
                         </div>
-                      ))}
+
+                        {/* In Progress */}
+                        <div className="bg-white rounded-lg border border-[#E5E5E7]">
+                          <div className="px-4 py-3 border-b border-[#E5E5E7]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 rounded-full bg-[#F97316]" />
+                              <span className="text-[13px] font-semibold text-[#1D1D1F]">In Progress</span>
+                            </div>
+                            <span className="text-[11px] text-[#86868B]">{currentSprint?.inProgress ?? 0} items</span>
+                          </div>
+                          <div className="p-3 space-y-2 min-h-[300px]">
+                            {inProgressTasks.map((t) => (
+                              <div key={t.id} className="bg-[#FFF7F0] border border-[#FED7AA] rounded-lg p-3">
+                                <p className="text-[12px] font-medium text-[#1D1D1F]">{t.title}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Review */}
+                        <div className="bg-white rounded-lg border border-[#E5E5E7]">
+                          <div className="px-4 py-3 border-b border-[#E5E5E7]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+                              <span className="text-[13px] font-semibold text-[#1D1D1F]">Review</span>
+                            </div>
+                            <span className="text-[11px] text-[#86868B]">{inReview} items</span>
+                          </div>
+                          <div className="p-3 space-y-2 min-h-[300px]">
+                            {attentionTasks
+                              .filter(t => t.reason === "Awaiting client approval")
+                              .map((t, i) => (
+                                <div key={i} className="bg-[#FFFAF0] border border-[#FED7AA] rounded-lg p-3">
+                                  <p className="text-[12px] font-medium text-[#1D1D1F] mb-1">{t.title}</p>
+                                  <p className="text-[11px] text-[#86868B]">{t.reason}</p>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+
+                        {/* Done */}
+                        <div className="bg-white rounded-lg border border-[#E5E5E7]">
+                          <div className="px-4 py-3 border-b border-[#E5E5E7]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 rounded-full bg-[#12B76A]" />
+                              <span className="text-[13px] font-semibold text-[#1D1D1F]">Done</span>
+                            </div>
+                            <span className="text-[11px] text-[#86868B]">{done} items</span>
+                          </div>
+                          <div className="p-3 space-y-2 min-h-[300px]">
+                            {completedTasks.slice(0, 8).map((t) => (
+                              <div key={t.id} className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg p-3">
+                                <p className="text-[12px] font-medium text-[#1D1D1F]">{t.title}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </>
+
+                    {/* Weekly Decisions & Notes */}
+                    <div className="mt-6 bg-white rounded-lg border border-[#E5E5E7] p-5">
+                      <h3 className="text-[15px] font-bold text-[#1D1D1F] mb-3">
+                        Weekly Decisions &amp; Notes
+                        <span className="ml-2 text-[12px] font-normal text-[#86868B]">Last updated: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                      </h3>
+                      {meetings.length === 0 ? (
+                        <p className="text-[13px] text-[#86868B]">No meetings recorded this week</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-4">
+                          {meetings.slice(0, 2).map(m => (
+                            <div key={m.id} className="border border-[#E5E5E7] rounded-lg p-4">
+                              <div className="text-[13px] font-semibold text-[#1D1D1F] mb-1">{m.title}</div>
+                              <div className="text-[12px] text-[#86868B] mb-3">📅 {fmtMeetingDate(m.date, m.time)}</div>
+                              <p className="text-[12px] text-[#1D1D1F] leading-relaxed">Meeting summary and key decisions would appear here with actions taken and next steps.</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "next" && (
+                  <div className="space-y-4">
+                    <h2 className="text-[16px] font-bold text-[#1D1D1F]">
+                      Upcoming Sprint
+                      {nextSprint && (
+                        <span className="ml-2 text-[13px] font-normal text-[#86868B]">
+                          {fmtShort(nextSprint.startDate)} – {fmtShort(nextSprint.endDate)}
+                        </span>
+                      )}
+                    </h2>
+                    {!nextSprint ? (
+                      <div className="bg-white rounded-lg border border-[#E5E5E7] p-8 text-center">
+                        <Calendar className="w-8 h-8 text-[#86868B] mx-auto mb-2" />
+                        <p className="text-[13px] text-[#86868B]">No upcoming sprint planned</p>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-lg border border-[#E5E5E7] p-5">
+                        <div className="space-y-2">
+                          {nextSprint.tasks.map((t: any) => (
+                            <div key={t.id} className="flex items-center gap-3 p-3 hover:bg-[#F5F5F7] rounded-lg transition-colors">
+                              <div className="w-4 h-4 border border-[#D1D1D6] rounded flex-shrink-0" />
+                              <span className="text-[13px] text-[#1D1D1F]">{t.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "monthly" && (
+                  <div className="bg-white rounded-lg border border-[#E5E5E7] p-8 text-center">
+                    <FileText className="w-8 h-8 text-[#86868B] mx-auto mb-2" />
+                    <p className="text-[13px] text-[#86868B]">Monthly review content coming soon</p>
+                  </div>
+                )}
+
+                {activeTab === "timeline" && (
+                  <div className="bg-white rounded-lg border border-[#E5E5E7] p-8 text-center">
+                    <Radio className="w-8 h-8 text-[#86868B] mx-auto mb-2" />
+                    <p className="text-[13px] text-[#86868B]">Timeline view coming soon</p>
+                  </div>
+                )}
+
+                {activeTab === "documents" && (
+                  <div className="space-y-4">
+                    <h2 className="text-[16px] font-bold text-[#1D1D1F]">Documents</h2>
+                    {deliverables.length === 0 ? (
+                      <div className="bg-white rounded-lg border border-[#E5E5E7] p-8 text-center">
+                        <FileText className="w-8 h-8 text-[#86868B] mx-auto mb-2" />
+                        <p className="text-[13px] text-[#86868B]">No documents available yet</p>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-lg border border-[#E5E5E7] p-5">
+                        <div className="space-y-2">
+                          {deliverables.map((d: any) => (
+                            <div key={d.id} className="flex items-center justify-between p-3 hover:bg-[#F5F5F7] rounded-lg transition-colors">
+                              <div className="flex items-center gap-3">
+                                <FileText className="w-5 h-5 text-[#007AFF] flex-shrink-0" />
+                                <div>
+                                  <div className="text-[13px] font-medium text-[#1D1D1F]">{d.name}</div>
+                                  <div className="text-[11px] text-[#86868B]">{fmtShort(d.date)}</div>
+                                </div>
+                              </div>
+                              {d.url && (
+                                <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-[#007AFF] hover:text-[#0051D5]">
+                                  <Download className="w-4 h-4" />
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
+            </div>
+          </div>
 
-              {/* Project Overview — client org name + working days only */}
-              <div className="col-span-2 bg-white rounded-xl border border-[#E5E5E7] p-5">
-                <span className="text-[14px] font-semibold text-[#1D1D1F] block mb-4">Project Overview</span>
-                <div className="space-y-5">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-[#F5F5F7] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <svg className="w-4 h-4 text-[#86868B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-4m-10 0H3m2 0h4M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="text-[11px] text-[#86868B]">Client Organization</div>
-                      <div className="text-[13px] font-semibold text-[#1D1D1F]">{client?.name || "—"}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-[#F5F5F7] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Calendar className="w-4 h-4 text-[#86868B]" />
-                    </div>
-                    <div>
-                      <div className="text-[11px] text-[#86868B]">Working Days</div>
-                      <div className="text-[13px] font-semibold text-[#1D1D1F]">Mon – Sat</div>
-                    </div>
-                  </div>
+          {/* ── RIGHT SIDEBAR ── */}
+          <div className="w-72 bg-white border-l border-[#E5E5E7] flex flex-col print:hidden overflow-y-auto">
+            {/* Sprint Summary */}
+            <div className="p-4 border-b border-[#E5E5E7]">
+              <h3 className="text-[13px] font-bold text-[#1D1D1F] mb-4">Sprint Summary</h3>
+              <div className="flex items-center justify-center mb-4">
+                <svg className="w-32 h-32 -rotate-90" viewBox="0 0 120 120">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="#E5E5E7" strokeWidth="8" />
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="#12B76A" strokeWidth="8" strokeDasharray={`${(currentSprint?.completionPct || 0) * 3.14} 314`} strokeLinecap="round" />
+                </svg>
+                <div className="absolute text-center">
+                  <div className="text-[24px] font-bold text-[#1D1D1F]">{currentSprint?.completionPct ?? 0}%</div>
+                  <div className="text-[11px] text-[#86868B]">Complete</div>
+                </div>
+              </div>
+              <div className="space-y-2 text-[12px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[#1D1D1F]">Done</span>
+                  <span className="font-semibold text-[#12B76A]">{done}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#1D1D1F]">In Progress</span>
+                  <span className="font-semibold text-[#F97316]">{currentSprint?.inProgress ?? 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#1D1D1F]">Review</span>
+                  <span className="font-semibold text-[#F59E0B]">{inReview}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[#1D1D1F]">Waiting</span>
+                  <span className="font-semibold text-[#EF4444]">{waitingForClient}</span>
                 </div>
               </div>
             </div>
 
+            {/* What's Next */}
+            <div className="p-4 border-b border-[#E5E5E7]">
+              <h3 className="text-[13px] font-bold text-[#1D1D1F] mb-3">What&apos;s Next</h3>
+              {meetings.length === 0 ? (
+                <p className="text-[12px] text-[#86868B]">No upcoming meetings</p>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-[#007AFF] flex-shrink-0 mt-1" />
+                  <div>
+                    <div className="text-[12px] font-semibold text-[#1D1D1F]">{meetings[0].title}</div>
+                    <div className="text-[11px] text-[#86868B]">{fmtMeetingDate(meetings[0].date, meetings[0].time)}</div>
+                    <button className="text-[11px] text-[#007AFF] font-medium hover:underline mt-2">View Meeting Details</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="p-4 flex-1">
+              <h3 className="text-[13px] font-bold text-[#1D1D1F] mb-3">Quick Actions</h3>
+              <div className="space-y-2">
+                {[
+                  { icon: HelpCircle, label: "Request Something" },
+                  { icon: MessageCircle, label: "Give Feedback" },
+                  { icon: Phone, label: "Schedule a Call" },
+                ].map(({ icon: Icon, label }) => (
+                  <button
+                    key={label}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-[#E5E5E7] hover:bg-[#F5F5F7] transition-colors text-[12px] font-medium text-[#1D1D1F] group"
+                  >
+                    <Icon className="w-4 h-4 text-[#86868B] group-hover:text-[#007AFF]" />
+                    {label}
+                    <ChevronRight className="w-3.5 h-3.5 text-[#86868B] group-hover:text-[#007AFF] ml-auto" />
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
