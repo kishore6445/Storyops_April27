@@ -59,9 +59,25 @@ export function MeetingsTasksPanel({
   const { data: usersData } = useSWR("/api/users", fetcher, { revalidateOnFocus: false })
   const users: any[] = usersData?.users || []
 
-  // Fetch sprints filtered by client if available
-  const sprintsUrl = meeting.client_id
-    ? `/api/sprints?clientId=${meeting.client_id}`
+  // Fetch all clients to resolve the real UUID from the name stored in meetings.client_id
+  const { data: clientsData } = useSWR("/api/clients", fetcher, { revalidateOnFocus: false })
+  const clients: any[] = clientsData?.clients || []
+
+  // meetings.client_id may be a name string — find the real UUID
+  const resolvedClientUUID: string | null = (() => {
+    if (!meeting.client_id) return null
+    // If it already looks like a UUID, use it directly
+    if (/^[0-9a-f-]{36}$/i.test(meeting.client_id)) return meeting.client_id
+    // Otherwise match by name
+    const found = clients.find((c: any) =>
+      (c.name || "").toLowerCase() === meeting.client_id!.toLowerCase()
+    )
+    return found?.id || null
+  })()
+
+  // Fetch sprints using the resolved UUID
+  const sprintsUrl = resolvedClientUUID
+    ? `/api/sprints?clientId=${resolvedClientUUID}`
     : "/api/sprints"
   const { data: sprintsData } = useSWR(sprintsUrl, fetcher, { revalidateOnFocus: false })
   const sprints: any[] = sprintsData?.sprints || []
@@ -78,13 +94,13 @@ export function MeetingsTasksPanel({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          title:        newTask.title,
-          assigneeId:   newTask.assigneeId   || undefined,
-          priority:     newTask.priority,
-          due_date:     newTask.due_date      || undefined,
-          promised_date: newTask.promised_date || undefined,
-          sprintId:     newTask.sprintId      || undefined,
-          clientId:     meeting.client_id     || undefined,
+          title:         newTask.title,
+          assigneeId:    newTask.assigneeId    || undefined,
+          priority:      newTask.priority,
+          due_date:      newTask.due_date       || undefined,
+          promised_date: newTask.promised_date  || undefined,
+          sprintId:      newTask.sprintId       || undefined,
+          clientId:      resolvedClientUUID     || undefined,
         }),
       })
       if (res.ok) {

@@ -599,6 +599,37 @@ export default function ClientPortalPage() {
                                   </div>
                                 </div>
                               )}
+
+                              {/* Tasks from this meeting */}
+                              {m.tasks?.length > 0 && (
+                                <div className="px-5 py-4 border-t border-[#F5F5F7]">
+                                  <div className="text-[12px] font-semibold text-[#1D1D1F] mb-2.5">
+                                    Tasks from this Meeting
+                                    <span className="ml-1.5 text-[11px] font-normal text-[#86868B]">({m.tasks.length})</span>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {m.tasks.map((t: any) => (
+                                      <div key={t.id} className="flex items-center gap-2.5">
+                                        <div className={cn(
+                                          "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                                          t.status === "done" ? "bg-[#12B76A]" :
+                                          t.status === "in_progress" ? "bg-[#007AFF]" : "bg-[#D1D1D6]"
+                                        )} />
+                                        <span className={cn(
+                                          "text-[12px] flex-1",
+                                          t.status === "done" ? "line-through text-[#86868B]" : "text-[#1D1D1F]"
+                                        )}>{t.title}</span>
+                                        {t.assignee && (
+                                          <span className="text-[11px] text-[#86868B] flex-shrink-0">{t.assignee.full_name}</span>
+                                        )}
+                                        {t.priority === "high" && (
+                                          <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-red-50 text-red-600 rounded-full flex-shrink-0">High</span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>

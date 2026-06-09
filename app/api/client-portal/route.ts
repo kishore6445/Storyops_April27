@@ -106,6 +106,28 @@ export async function GET(request: Request) {
       .order("date", { ascending: false })
       .limit(10)
 
+    // ── Tasks linked to meetings ──────────────────────────────────────────
+    const meetingIds = (meetingsData || []).map((m: any) => m.id)
+    let meetingTasksMap: Record<string, any[]> = {}
+    if (meetingIds.length > 0) {
+      const { data: meetingTasks } = await supabase
+        .from("tasks")
+        .select("id, title, status, priority, due_date, assigned_to, meeting_id, users!tasks_assigned_to_fkey(id, full_name, email)")
+        .in("meeting_id", meetingIds)
+      for (const t of meetingTasks || []) {
+        const mt = t as any
+        if (!meetingTasksMap[mt.meeting_id]) meetingTasksMap[mt.meeting_id] = []
+        meetingTasksMap[mt.meeting_id].push({
+          id: mt.id,
+          title: mt.title,
+          status: mt.status,
+          priority: mt.priority,
+          due_date: mt.due_date,
+          assignee: mt.users || null,
+        })
+      }
+    }
+
     // ── Deliverables from done-task files ─────────────────────────────────
     let deliverables: any[] = []
     if (completedTasks.length > 0) {
@@ -194,6 +216,7 @@ export async function GET(request: Request) {
         actionItems: Array.isArray(m.action_items) ? m.action_items : (m.action_items ? [m.action_items] : []),
         attendees: Array.isArray(m.attendees) ? m.attendees : (m.attendees ? [m.attendees] : []),
         notes: m.notes || "",
+        tasks: meetingTasksMap[m.id] || [],
       })),
       deliverables,
       socialCounts,

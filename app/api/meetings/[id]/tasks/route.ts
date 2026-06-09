@@ -56,16 +56,9 @@ export async function POST(
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
 
-    // Look up the meeting to get its client_id if clientId not passed
-    let resolvedClientId = clientId
-    if (!resolvedClientId) {
-      const { data: meeting } = await supabase
-        .from('meetings')
-        .select('client_id')
-        .eq('id', meetingId)
-        .single()
-      resolvedClientId = (meeting as any)?.client_id || null
-    }
+    // Use clientId from the request body (panel always sends the real UUID).
+    // Do NOT fall back to meeting.client_id which stores a name string, not a UUID.
+    const resolvedClientId = clientId || null
 
     const insertPayload: Record<string, any> = {
       title: title.trim(),
