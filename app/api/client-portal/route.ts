@@ -100,8 +100,11 @@ export async function GET(request: Request) {
 
     // ── Meetings ──────────────────────────────────────────────────────────
     const { data: meetingsData } = await supabase
-      .from("meetings").select("id, title, date, time, status, summary")
-      .eq("client_id", clientId).order("date", { ascending: false }).limit(10)
+      .from("meetings")
+      .select("id, title, date, time, status, summary, key_decisions, action_items, attendees, notes")
+      .eq("client_id", clientId)
+      .order("date", { ascending: false })
+      .limit(10)
 
     // ── Deliverables from done-task files ─────────────────────────────────
     let deliverables: any[] = []
@@ -181,7 +184,16 @@ export async function GET(request: Request) {
       delayedTasks:    delayedTasks.map((t: any)    => ({ id: t.id, title: t.title })),
       attentionTasks:  attentionTasks.map((t: any)  => ({ id: t.id, title: t.title, reason: t.reason })),
       meetings: (meetingsData || []).map((m: any) => ({
-        id: m.id, title: m.title || "Team Meeting", date: m.date, time: m.time || "",
+        id: m.id,
+        title: m.title || "Team Meeting",
+        date: m.date,
+        time: m.time || "",
+        status: m.status || "",
+        summary: m.summary || "",
+        keyDecisions: Array.isArray(m.key_decisions) ? m.key_decisions : (m.key_decisions ? [m.key_decisions] : []),
+        actionItems: Array.isArray(m.action_items) ? m.action_items : (m.action_items ? [m.action_items] : []),
+        attendees: Array.isArray(m.attendees) ? m.attendees : (m.attendees ? [m.attendees] : []),
+        notes: m.notes || "",
       })),
       deliverables,
       socialCounts,

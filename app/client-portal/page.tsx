@@ -176,8 +176,8 @@ export default function ClientPortalPage() {
   }
 
   // Kanban board columns
-  const waitingForClient = attentionTasks.filter(t => t.reason === "Awaiting content approval").length
-  const inReview = attentionTasks.filter(t => t.reason === "Awaiting client approval").length
+  const waitingForClient = attentionTasks.filter((t: any) => t.reason === "Awaiting content approval").length
+  const inReview = attentionTasks.filter((t: any) => t.reason === "Awaiting client approval").length
   const done = completedTasks.length
 
   // Modal configs
@@ -434,8 +434,8 @@ export default function ClientPortalPage() {
                           </div>
                           <div className="p-3 space-y-2 min-h-[300px]">
                             {attentionTasks
-                              .filter(t => t.reason === "Awaiting content approval")
-                              .map((t, i) => (
+                              .filter((t: any) => t.reason === "Awaiting content approval")
+                              .map((t: any, i: number) => (
                                 <div key={i} className="bg-[#FFF0F0] border border-[#FED7AA] rounded-lg p-3">
                                   <p className="text-[12px] font-medium text-[#1D1D1F] mb-1">{t.title}</p>
                                   <p className="text-[11px] text-[#86868B]">{t.reason}</p>
@@ -454,7 +454,7 @@ export default function ClientPortalPage() {
                             <span className="text-[11px] text-[#86868B]">{currentSprint?.inProgress ?? 0} items</span>
                           </div>
                           <div className="p-3 space-y-2 min-h-[300px]">
-                            {inProgressTasks.map((t) => (
+                            {inProgressTasks.map((t: any) => (
                               <div key={t.id} className="bg-[#FFF7F0] border border-[#FED7AA] rounded-lg p-3">
                                 <p className="text-[12px] font-medium text-[#1D1D1F]">{t.title}</p>
                               </div>
@@ -473,8 +473,8 @@ export default function ClientPortalPage() {
                           </div>
                           <div className="p-3 space-y-2 min-h-[300px]">
                             {attentionTasks
-                              .filter(t => t.reason === "Awaiting client approval")
-                              .map((t, i) => (
+                              .filter((t: any) => t.reason === "Awaiting client approval")
+                              .map((t: any, i: number) => (
                                 <div key={i} className="bg-[#FFFAF0] border border-[#FED7AA] rounded-lg p-3">
                                   <p className="text-[12px] font-medium text-[#1D1D1F] mb-1">{t.title}</p>
                                   <p className="text-[11px] text-[#86868B]">{t.reason}</p>
@@ -493,7 +493,7 @@ export default function ClientPortalPage() {
                             <span className="text-[11px] text-[#86868B]">{done} items</span>
                           </div>
                           <div className="p-3 space-y-2 min-h-[300px]">
-                            {completedTasks.slice(0, 8).map((t) => (
+                            {completedTasks.slice(0, 8).map((t: any) => (
                               <div key={t.id} className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg p-3">
                                 <p className="text-[12px] font-medium text-[#1D1D1F]">{t.title}</p>
                               </div>
@@ -504,20 +504,101 @@ export default function ClientPortalPage() {
                     </div>
 
                     {/* Weekly Decisions & Notes */}
-                    <div className="mt-6 bg-white rounded-lg border border-[#E5E5E7] p-5">
-                      <h3 className="text-[15px] font-bold text-[#1D1D1F] mb-3">
-                        Weekly Decisions &amp; Notes
-                        <span className="ml-2 text-[12px] font-normal text-[#86868B]">Last updated: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
-                      </h3>
+                    <div className="mt-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-[15px] font-bold text-[#1D1D1F]">
+                          Weekly Decisions &amp; Notes
+                          {meetings.length > 0 && (
+                            <span className="ml-2 text-[12px] font-normal text-[#86868B]">
+                              Last updated: {fmtShort(meetings[0]?.date)}
+                            </span>
+                          )}
+                        </h3>
+                      </div>
                       {meetings.length === 0 ? (
-                        <p className="text-[13px] text-[#86868B]">No meetings recorded this week</p>
+                        <div className="bg-white rounded-lg border border-[#E5E5E7] p-8 text-center">
+                          <MessageSquare className="w-8 h-8 text-[#86868B] mx-auto mb-2" />
+                          <p className="text-[13px] text-[#86868B]">No meetings recorded yet</p>
+                        </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-4">
-                          {meetings.slice(0, 2).map(m => (
-                            <div key={m.id} className="border border-[#E5E5E7] rounded-lg p-4">
-                              <div className="text-[13px] font-semibold text-[#1D1D1F] mb-1">{m.title}</div>
-                              <div className="text-[12px] text-[#86868B] mb-3">📅 {fmtMeetingDate(m.date, m.time)}</div>
-                              <p className="text-[12px] text-[#1D1D1F] leading-relaxed">Meeting summary and key decisions would appear here with actions taken and next steps.</p>
+                        <div className="space-y-4">
+                          {meetings.slice(0, 3).map((m: any) => (
+                            <div key={m.id} className="bg-white rounded-lg border border-[#E5E5E7] overflow-hidden">
+                              {/* Meeting header */}
+                              <div className="px-5 py-4 border-b border-[#F5F5F7]">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <div className="text-[14px] font-semibold text-[#1D1D1F]">{m.title}</div>
+                                    <div className="text-[12px] text-[#86868B] mt-0.5">
+                                      {fmtMeetingDate(m.date, m.time)}
+                                      {m.attendees?.length > 0 && (
+                                        <span className="ml-2 text-[#86868B]">· Attendees: {m.attendees.join(", ")}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {m.status && (
+                                    <span className={cn(
+                                      "text-[11px] font-semibold px-2 py-0.5 rounded-full",
+                                      m.status === "completed" ? "bg-[#E6F9F0] text-[#12B76A]" : "bg-[#EEF4FF] text-[#007AFF]"
+                                    )}>
+                                      {m.status}
+                                    </span>
+                                  )}
+                                </div>
+                                {m.summary && (
+                                  <p className="text-[12px] text-[#1D1D1F] leading-relaxed mt-2">{m.summary}</p>
+                                )}
+                              </div>
+
+                              {/* Key decisions + Action items */}
+                              <div className="grid grid-cols-2 divide-x divide-[#F5F5F7]">
+                                {/* Decisions taken */}
+                                <div className="px-5 py-4">
+                                  <div className="text-[12px] font-semibold text-[#12B76A] mb-2">Decisions Taken</div>
+                                  {m.keyDecisions?.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {m.keyDecisions.map((d: string, i: number) => (
+                                        <li key={i} className="flex items-start gap-2">
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-[#12B76A] flex-shrink-0 mt-0.5" />
+                                          <span className="text-[12px] text-[#1D1D1F]">{d}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-[12px] text-[#86868B] italic">No decisions recorded</p>
+                                  )}
+                                </div>
+
+                                {/* Action items / waiting from client */}
+                                <div className="px-5 py-4">
+                                  <div className="text-[12px] font-semibold text-[#EF4444] mb-2">Waiting From Client</div>
+                                  {m.actionItems?.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {m.actionItems.map((a: string, i: number) => (
+                                        <li key={i} className="flex items-start gap-2">
+                                          <AlertCircle className="w-3.5 h-3.5 text-[#EF4444] flex-shrink-0 mt-0.5" />
+                                          <span className="text-[12px] text-[#1D1D1F]">{a}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-[12px] text-[#86868B] italic">Nothing pending</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Notes / next steps */}
+                              {m.notes && (
+                                <div className="px-5 py-3 bg-[#F8F9FB] border-t border-[#F5F5F7]">
+                                  <div className="flex items-start gap-2">
+                                    <ArrowRight className="w-3.5 h-3.5 text-[#007AFF] flex-shrink-0 mt-0.5" />
+                                    <div>
+                                      <span className="text-[12px] font-semibold text-[#1D1D1F]">Next Steps </span>
+                                      <span className="text-[12px] text-[#86868B]">{m.notes}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>

@@ -16,7 +16,7 @@ export async function GET(
 
     const { data: tasks, error } = await supabase
       .from('tasks')
-      .select('id, title, status, priority, due_date, promised_date, assigned_to, users(id, full_name, email)')
+      .select('id, title, status, priority, due_date, promised_date, assigned_to, users!tasks_assigned_to_fkey(id, full_name, email)')
       .eq('meeting_id', id)
       .order('created_at', { ascending: true })
 
@@ -64,7 +64,7 @@ export async function POST(
         .select('client_id')
         .eq('id', meetingId)
         .single()
-      resolvedClientId = meeting?.client_id || null
+      resolvedClientId = (meeting as any)?.client_id || null
     }
 
     const insertPayload: Record<string, any> = {
@@ -81,11 +81,13 @@ export async function POST(
     if (due_date)         insertPayload.due_date    = due_date
     if (promised_date)    insertPayload.promised_date = promised_date
 
-    const { data: task, error } = await supabase
+    const { data: taskData, error } = await supabase
       .from('tasks')
-      .insert(insertPayload)
-      .select('id, title, status, priority, due_date, promised_date, assigned_to, users(id, full_name, email)')
+      .insert(insertPayload as any)
+      .select('id, title, status, priority, due_date, promised_date, assigned_to, users!tasks_assigned_to_fkey(id, full_name, email)')
       .single()
+
+    const task = taskData as any
 
     if (error || !task) {
       console.error('[v0] POST meeting task error:', error)
@@ -94,10 +96,10 @@ export async function POST(
 
     // Also insert into task_assignees if assigneeId provided
     if (assigneeId && task.id) {
-      await supabase.from('task_assignees').insert({ task_id: task.id, user_id: assigneeId })
+      await supabase.from('task_assignees').insert({ task_id: task.id, user_id: assigneeId } as any)
     }
 
-    return NextResponse.json({ task: { ...task, assignee: (task as any).users || null } }, { status: 201 })
+    return NextResponse.json({ task: { ...task, assignee: task.users || null } }, { status: 201 })
   } catch (error: any) {
     console.error('[v0] POST /api/meetings/[id]/tasks error:', error)
     return NextResponse.json({ error: 'Failed to create task' }, { status: 500 })
