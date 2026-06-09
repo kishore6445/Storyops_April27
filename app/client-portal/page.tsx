@@ -96,7 +96,8 @@ function ViewAllModal({ title, items, renderItem, onClose }: {
 export default function ClientPortalPage() {
   const [selectedSprintId, setSelectedSprintId] = useState<string>("")
   const [sprintDropdownOpen, setSprintDropdownOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<"board" | "next" | "monthly" | "timeline" | "documents">("board")
+  const [activeTab, setActiveTab] = useState<"board" | "next" | "monthly" | "timeline" | "documents" | "meetings">("board")
+  const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null)
   const swrKey = selectedSprintId ? `/api/client-portal?sprintId=${selectedSprintId}` : "/api/client-portal"
   const { data, isLoading } = useSWR(swrKey, fetcher, { revalidateOnFocus: false })
   const [viewAll, setViewAll] = useState<string | null>(null)
@@ -269,15 +270,26 @@ export default function ClientPortalPage() {
             <div className="border-t border-[#E5E5E7] p-3 space-y-1">
               <div className="px-2 py-1.5 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Communication</div>
               {[
-                { label: "Weekly Meetings", icon: MessageSquare },
-                { label: "Messages", icon: MessageCircle },
-              ].map(({ label, icon: Icon }) => (
+                { label: "Weekly Meetings", icon: MessageSquare, tab: "meetings" as const },
+                { label: "Messages", icon: MessageCircle, tab: null },
+              ].map(({ label, icon: Icon, tab }) => (
                 <button
                   key={label}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[#1D1D1F] hover:bg-[#F5F5F7] transition-colors"
+                  onClick={() => tab && setActiveTab(tab)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors",
+                    activeTab === tab
+                      ? "bg-[#EEF4FF] text-[#007AFF]"
+                      : "text-[#1D1D1F] hover:bg-[#F5F5F7]"
+                  )}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
                   <span className="truncate">{label}</span>
+                  {label === "Weekly Meetings" && meetings.length > 0 && (
+                    <span className="ml-auto text-[10px] font-bold bg-[#007AFF] text-white rounded-full w-4 h-4 flex items-center justify-center flex-shrink-0">
+                      {meetings.length}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -367,6 +379,7 @@ export default function ClientPortalPage() {
                   {[
                     { id: "board", label: "Sprint Board" },
                     { id: "next", label: "Next Sprint" },
+                    { id: "meetings", label: "Meetings" },
                     { id: "monthly", label: "Monthly Review" },
                     { id: "timeline", label: "Timeline" },
                     { id: "documents", label: "Documents" },
@@ -663,6 +676,183 @@ export default function ClientPortalPage() {
                             </div>
                           ))}
                         </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "meetings" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-[16px] font-bold text-[#1D1D1F]">
+                        Meetings
+                        {meetings.length > 0 && (
+                          <span className="ml-2 text-[13px] font-normal text-[#86868B]">{meetings.length} recorded</span>
+                        )}
+                      </h2>
+                    </div>
+
+                    {meetings.length === 0 ? (
+                      <div className="bg-white rounded-lg border border-[#E5E5E7] p-12 text-center">
+                        <MessageSquare className="w-10 h-10 text-[#D1D1D6] mx-auto mb-3" />
+                        <p className="text-[14px] font-medium text-[#1D1D1F]">No meetings recorded yet</p>
+                        <p className="text-[12px] text-[#86868B] mt-1">Meeting notes will appear here after your sessions</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {meetings.map((m: any) => {
+                          const isExpanded = expandedMeeting === m.id
+                          return (
+                            <div key={m.id} className="bg-white rounded-xl border border-[#E5E5E7] overflow-hidden">
+                              {/* Header — always visible, click to expand */}
+                              <button
+                                className="w-full px-5 py-4 flex items-center gap-4 hover:bg-[#F8F9FB] transition-colors text-left"
+                                onClick={() => setExpandedMeeting(isExpanded ? null : m.id)}
+                              >
+                                <div className="w-10 h-10 rounded-full bg-[#EEF4FF] flex items-center justify-center flex-shrink-0">
+                                  <MessageSquare className="w-5 h-5 text-[#007AFF]" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[14px] font-semibold text-[#1D1D1F]">{m.title}</div>
+                                  <div className="text-[12px] text-[#86868B] mt-0.5">
+                                    {fmtMeetingDate(m.date, m.time)}
+                                    {m.attendees?.length > 0 && (
+                                      <span className="ml-2">· {m.attendees.join(", ")}</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  {m.status && (
+                                    <span className={cn(
+                                      "text-[11px] font-semibold px-2 py-0.5 rounded-full",
+                                      m.status === "completed" ? "bg-[#E6F9F0] text-[#12B76A]" :
+                                      m.status === "scheduled" ? "bg-[#EEF4FF] text-[#007AFF]" :
+                                      "bg-[#F5F5F7] text-[#86868B]"
+                                    )}>{m.status}</span>
+                                  )}
+                                  {m.tasks?.length > 0 && (
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FFF4EC] text-[#F97316]">
+                                      {m.tasks.length} task{m.tasks.length !== 1 ? "s" : ""}
+                                    </span>
+                                  )}
+                                  <ChevronDown className={cn("w-4 h-4 text-[#86868B] transition-transform", isExpanded && "rotate-180")} />
+                                </div>
+                              </button>
+
+                              {/* Expanded detail */}
+                              {isExpanded && (
+                                <div className="border-t border-[#F5F5F7]">
+
+                                  {/* Agenda */}
+                                  {m.agenda && (
+                                    <div className="px-5 py-4 border-b border-[#F5F5F7]">
+                                      <div className="text-[12px] font-semibold text-[#86868B] uppercase tracking-wider mb-2">Agenda</div>
+                                      <p className="text-[13px] text-[#1D1D1F] leading-relaxed">{m.agenda}</p>
+                                    </div>
+                                  )}
+
+                                  {/* Summary / Notes */}
+                                  {m.summary && (
+                                    <div className="px-5 py-4 border-b border-[#F5F5F7]">
+                                      <div className="text-[12px] font-semibold text-[#86868B] uppercase tracking-wider mb-2">Summary</div>
+                                      <p className="text-[13px] text-[#1D1D1F] leading-relaxed">{m.summary}</p>
+                                    </div>
+                                  )}
+
+                                  {/* Key Decisions + Action Items side by side */}
+                                  {(m.keyDecisions?.length > 0 || m.actionItems?.length > 0) && (
+                                    <div className="grid grid-cols-2 divide-x divide-[#F5F5F7] border-b border-[#F5F5F7]">
+                                      <div className="px-5 py-4">
+                                        <div className="text-[12px] font-semibold text-[#12B76A] uppercase tracking-wider mb-3">Key Decisions</div>
+                                        {m.keyDecisions?.length > 0 ? (
+                                          <ul className="space-y-2">
+                                            {m.keyDecisions.map((d: string, i: number) => (
+                                              <li key={i} className="flex items-start gap-2">
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-[#12B76A] flex-shrink-0 mt-0.5" />
+                                                <span className="text-[12px] text-[#1D1D1F]">{d}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        ) : (
+                                          <p className="text-[12px] text-[#86868B] italic">None recorded</p>
+                                        )}
+                                      </div>
+                                      <div className="px-5 py-4">
+                                        <div className="text-[12px] font-semibold text-[#EF4444] uppercase tracking-wider mb-3">Waiting From Client</div>
+                                        {m.actionItems?.length > 0 ? (
+                                          <ul className="space-y-2">
+                                            {m.actionItems.map((a: string, i: number) => (
+                                              <li key={i} className="flex items-start gap-2">
+                                                <AlertCircle className="w-3.5 h-3.5 text-[#EF4444] flex-shrink-0 mt-0.5" />
+                                                <span className="text-[12px] text-[#1D1D1F]">{a}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        ) : (
+                                          <p className="text-[12px] text-[#86868B] italic">Nothing pending</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Next Steps */}
+                                  {m.notes && (
+                                    <div className="px-5 py-3 bg-[#F8F9FB] border-b border-[#F5F5F7]">
+                                      <div className="flex items-start gap-2">
+                                        <ArrowRight className="w-3.5 h-3.5 text-[#007AFF] flex-shrink-0 mt-0.5" />
+                                        <div>
+                                          <span className="text-[12px] font-semibold text-[#1D1D1F]">Next Steps — </span>
+                                          <span className="text-[12px] text-[#86868B]">{m.notes}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Tasks from this meeting */}
+                                  {m.tasks?.length > 0 && (
+                                    <div className="px-5 py-4">
+                                      <div className="text-[12px] font-semibold text-[#86868B] uppercase tracking-wider mb-3">
+                                        Tasks ({m.tasks.length})
+                                      </div>
+                                      <div className="space-y-2">
+                                        {m.tasks.map((t: any) => (
+                                          <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-[#F8F9FB]">
+                                            <div className={cn(
+                                              "w-2 h-2 rounded-full flex-shrink-0",
+                                              t.status === "done" ? "bg-[#12B76A]" :
+                                              t.status === "in_progress" ? "bg-[#007AFF]" :
+                                              t.status === "in_review" ? "bg-[#F59E0B]" : "bg-[#D1D1D6]"
+                                            )} />
+                                            <span className={cn(
+                                              "text-[12px] flex-1",
+                                              t.status === "done" ? "line-through text-[#86868B]" : "text-[#1D1D1F]"
+                                            )}>{t.title}</span>
+                                            {t.due_date && (
+                                              <span className="text-[11px] text-[#86868B] flex-shrink-0">{fmtShort(t.due_date)}</span>
+                                            )}
+                                            {t.assignee && (
+                                              <span className="text-[11px] font-medium text-[#86868B] flex-shrink-0">{t.assignee.full_name}</span>
+                                            )}
+                                            {t.priority === "high" && (
+                                              <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-red-50 text-red-600 rounded-full flex-shrink-0">High</span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Empty state for expanded but no content */}
+                                  {!m.agenda && !m.summary && !m.keyDecisions?.length && !m.actionItems?.length && !m.notes && !m.tasks?.length && (
+                                    <div className="px-5 py-6 text-center">
+                                      <p className="text-[12px] text-[#86868B]">No details recorded for this meeting yet.</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>

@@ -99,12 +99,14 @@ export async function GET(request: Request) {
     }
 
     // ── Meetings ──────────────────────────────────────────────────────────
+    // meetings.client_id stores the client NAME string (not the UUID)
+    const clientName = (clientRow as any).name
     const { data: meetingsData } = await supabase
       .from("meetings")
-      .select("id, title, date, time, status, summary, key_decisions, action_items, attendees, notes")
-      .eq("client_id", clientId)
+      .select("id, title, date, time, status, summary, key_decisions, action_items, attendees, notes, agenda")
+      .eq("client_id", clientName)
       .order("date", { ascending: false })
-      .limit(10)
+      .limit(20)
 
     // ── Tasks linked to meetings ──────────────────────────────────────────
     const meetingIds = (meetingsData || []).map((m: any) => m.id)
@@ -216,6 +218,7 @@ export async function GET(request: Request) {
         actionItems: Array.isArray(m.action_items) ? m.action_items : (m.action_items ? [m.action_items] : []),
         attendees: Array.isArray(m.attendees) ? m.attendees : (m.attendees ? [m.attendees] : []),
         notes: m.notes || "",
+        agenda: m.agenda || "",
         tasks: meetingTasksMap[m.id] || [],
       })),
       deliverables,
