@@ -54,8 +54,8 @@ export async function GET(request: Request) {
     if (!clientRow) {
       return NextResponse.json({ error: "No client account found for this user" }, { status: 404 })
     }
-    const clientId = (clientRow as any).id
-    const clientName = (clientRow as any).name
+    const clientId = (clientRow as any).id as string
+    const clientName = ((clientRow as any).name as string).trim()
 
     // ── All sprints ───────────────────────────────────────────────────────
     const { data: allSprintsData } = await supabase
@@ -129,28 +129,19 @@ export async function GET(request: Request) {
     }
 
     // ── Meetings ──────────────────────────────────────────────────────────
-    // Fetch by exact client name and by client UUID separately — using chained .eq() calls
-    // avoids the PostgREST .or() syntax bug where spaces in values break the filter.
-    const [{ data: meetingsByName }, { data: meetingsByUuid }] = await Promise.all([
-      supabase
-        .from("meetings")
-        .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
-        .eq("client_id", clientName)
-        .order("date", { ascending: false })
-        .limit(100),
-      supabase
-        .from("meetings")
-        .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
-        .eq("client_id", clientId)
-        .order("date", { ascending: false })
-        .limit(100),
-    ])
+    // Fetch ALL meetings then filter in JS by client_id matching clientName or clientId.
+    // This avoids PostgREST filter issues with multi-word string values.
+    const { data: allMeetingsRaw } = await supabase
+      .from("meetings")
+      .select("id, title, date, time, status, summary, key_decisions, notes, agenda, client_id")
+      .order("date", { ascending: false })
+      .limit(500)
 
-    const seenIds = new Set<string>()
-    const rawMeetings: any[] = []
-    for (const m of [...((meetingsByName || []) as any[]), ...((meetingsByUuid || []) as any[])]) {
-      if (!seenIds.has((m as any).id)) { seenIds.add((m as any).id); rawMeetings.push(m) }
-    }
+    const clientNameLower = clientName.toLowerCase()
+    const rawMeetings: any[] = ((allMeetingsRaw || []) as any[]).filter((m: any) => {
+      const cid = (m.client_id || "").trim()
+      return cid === clientName || cid === clientId || cid.toLowerCase() === clientNameLower
+    })
     rawMeetings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     // Fetch attendees + action items from their sub-tables for each meeting
