@@ -20,9 +20,38 @@ export async function GET(request: Request) {
     const userName: string = (userRecord as any)?.full_name || "User"
 
     // ── Client org ────────────────────────────────────────────────────────
-    const { data: clientRow, error: clientError } = await supabase
-      .from("clients").select("id, name, description").eq("user_id", user.id).limit(1).single()
-    if (clientError || !clientRow) {
+    // Strategy 1: find by user_id (admin linked a user to this client)
+    let { data: clientRow } = await supabase
+      .from("clients").select("id, name, description").eq("user_id", user.id).limit(1).maybeSingle()
+
+    // Strategy 2: fallback — match client name against the user's full_name (case-insensitive)
+    if (!clientRow && userRecord) {
+      const fullName = (userRecord as any)?.full_name || ""
+      if (fullName) {
+        const { data: clientByName } = await supabase
+          .from("clients").select("id, name, description")
+          .ilike("name", fullName)
+          .limit(1)
+          .maybeSingle()
+        if (clientByName) clientRow = clientByName
+      }
+    }
+
+    // Strategy 3: fallback — match by email prefix against client name
+    if (!clientRow && userRecord) {
+      const email = (userRecord as any)?.email || ""
+      const emailPrefix = email.split("@")[0] || ""
+      if (emailPrefix.length >= 3) {
+        const { data: clientByEmail } = await supabase
+          .from("clients").select("id, name, description")
+          .ilike("name", `%${emailPrefix}%`)
+          .limit(1)
+          .maybeSingle()
+        if (clientByEmail) clientRow = clientByEmail
+      }
+    }
+
+    if (!clientRow) {
       return NextResponse.json({ error: "No client account found for this user" }, { status: 404 })
     }
     const clientId = (clientRow as any).id
