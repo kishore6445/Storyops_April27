@@ -71,15 +71,15 @@ export async function POST(
       title: title.trim(),
       status: 'todo',
       priority: priority || 'medium',
-      user_id: user.id,
+      assigned_to: user.id,
       meeting_id: meetingId,
     }
 
-    if (resolvedClientId) insertPayload.client_id  = resolvedClientId
-    if (sprintId)         insertPayload.sprint_id  = sprintId
-    if (assigneeId)       insertPayload.assigned_to = assigneeId
-    if (due_date)         insertPayload.due_date    = due_date
-    if (promised_date)    insertPayload.promised_date = promised_date
+    if (resolvedClientId) insertPayload.client_id = resolvedClientId
+    if (sprintId) insertPayload.sprint_id = sprintId
+    if (assigneeId) insertPayload.assigned_to = assigneeId
+    if (due_date) insertPayload.due_date = due_date
+    if (promised_date) insertPayload.promised_date = promised_date
 
     const { data: taskData, error } = await supabase
       .from('tasks')
