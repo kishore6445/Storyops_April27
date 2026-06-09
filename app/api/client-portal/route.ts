@@ -20,9 +20,12 @@ export async function GET(request: Request) {
     const userName: string = (userRecord as any)?.full_name || "User"
 
     // ── Client org ────────────────────────────────────────────────────────
+    console.log("[v0] client-portal: looking up client for user.id:", user.id, "full_name:", (userRecord as any)?.full_name, "email:", (userRecord as any)?.email)
+
     // Strategy 1: find by user_id (admin linked a user to this client)
     let { data: clientRow } = await supabase
       .from("clients").select("id, name, description").eq("user_id", user.id).limit(1).maybeSingle()
+    console.log("[v0] Strategy 1 (user_id match):", clientRow ? `found: ${(clientRow as any).name}` : "not found")
 
     // Strategy 2: fallback — match client name against the user's full_name (case-insensitive)
     if (!clientRow && userRecord) {
@@ -33,7 +36,12 @@ export async function GET(request: Request) {
           .ilike("name", fullName)
           .limit(1)
           .maybeSingle()
-        if (clientByName) clientRow = clientByName
+        if (clientByName) {
+          clientRow = clientByName
+          console.log("[v0] Strategy 2 (full_name match):", (clientByName as any).name)
+        } else {
+          console.log("[v0] Strategy 2 (full_name match): not found for fullName:", fullName)
+        }
       }
     }
 
@@ -47,15 +55,22 @@ export async function GET(request: Request) {
           .ilike("name", `%${emailPrefix}%`)
           .limit(1)
           .maybeSingle()
-        if (clientByEmail) clientRow = clientByEmail
+        if (clientByEmail) {
+          clientRow = clientByEmail
+          console.log("[v0] Strategy 3 (email prefix match):", (clientByEmail as any).name)
+        } else {
+          console.log("[v0] Strategy 3 (email prefix match): not found for prefix:", emailPrefix)
+        }
       }
     }
 
     if (!clientRow) {
+      console.log("[v0] client-portal: NO client found after all strategies — returning 404")
       return NextResponse.json({ error: "No client account found for this user" }, { status: 404 })
     }
     const clientId = (clientRow as any).id
     const clientName = (clientRow as any).name
+    console.log("[v0] client-portal: resolved client — id:", clientId, "name:", JSON.stringify(clientName))
 
     // ── All sprints ───────────────────────────────────────────────────────
     const { data: allSprintsData } = await supabase
@@ -129,25 +144,87 @@ export async function GET(request: Request) {
     }
 
     // ── Meetings ──────────────────────────────────────────────────────────
-    // meetings.client_id may store the name string OR the UUID depending on how it was created.
-    // Fetch by both to cover all cases, then merge deduplicated.
-    const [{ data: meetingsByName }, { data: meetingsByUuid }] = await Promise.all([
-      supabase
-        .from("meetings")
-        .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
-        .eq("client_id", clientName)
-        .order("date", { ascending: false })
-        .limit(20),
-      supabase
-        .from("meetings")
-        .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
-        .eq("client_id", clientId)
-        .order("date", { ascending: false })
-        .limit(20),
-    ])
+    console.log("[v0] client-portal meetings lookup — clientId:", clientId, "clientName:", JSON.stringify(clientName))
+
+    // Debug: log ALL meetings to find what client_id values actually exist
+    const { data: debugAllMeetings } = await supabase.from("meetings").select("id, client_id, title, user_id").limit(30)
+    console.log("[v0] DEBUG all meetings in DB:", JSON.stringify(debugAllMeetings?.map((m: any) => ({
+      id: m.id?.slice(0,8), client_id: m.client_id, user_id: m.user_id?.slice(0,8), title: (m.title || "").slice(0,30)
+    }))))
+
+    // Strategy A: OR filter — exact name, UUID, ilike name, and each significant word in the name
+    const nameParts = clientName.split(/\s+/).filter((p: string) => p.length >= 3)
+    const ilikeFilters = [
+      `client_id.eq.${clientName}`,
+      `client_id.eq.${clientId}`,
+      ...nameParts.map((p: string) => `client_id.ilike.%${p}%`),
+    ]
+    const orFilter = ilikeFilters.join(",")
+    console.log("[v0] meetings OR filter:", orFilter)
+
+    let { data: allMatchedMeetings } = await supabase
+      .from("meetings")
+      .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
+      .or(orFilter)
+      .order("date", { ascending: false })
+      .limit(100)
+
+    console.log("[v0] Strategy A matched:", allMatchedMeetings?.length ?? 0)
+
+    // Strategy B: fallback — fetch the team's admin user IDs from clients→teams→team_members,
+    // then query meetings by those user_ids (covers old meetings created with a different client name)
+    if (!allMatchedMeetings || allMatchedMeetings.length === 0) {
+      console.log("[v0] Strategy A returned 0 — falling back to team-based lookup")
+      const { data: clientTeamRow } = await supabase
+        .from("clients").select("team_id").eq("id", clientId).maybeSingle()
+      const teamId = (clientTeamRow as any)?.team_id
+      console.log("[v0] team_id for client:", teamId)
+
+      if (teamId) {
+        // Get all team member user IDs
+        const { data: teamMemberRows } = await supabase
+          .from("team_members").select("user_id").eq("team_id", teamId)
+        const teamUserIds = (teamMemberRows || []).map((r: any) => r.user_id).filter(Boolean)
+        console.log("[v0] team member user_ids:", teamUserIds)
+
+        if (teamUserIds.length > 0) {
+          const { data: meetingsByTeam } = await supabase
+            .from("meetings")
+            .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
+            .in("user_id", teamUserIds)
+            .order("date", { ascending: false })
+            .limit(100)
+          console.log("[v0] Strategy B (team user_ids) matched:", meetingsByTeam?.length ?? 0)
+          if (meetingsByTeam && meetingsByTeam.length > 0) {
+            allMatchedMeetings = meetingsByTeam
+          }
+        }
+      }
+
+      // Strategy C: last resort — get team owner from teams table
+      if (!allMatchedMeetings || allMatchedMeetings.length === 0) {
+        const { data: teamRow } = await supabase
+          .from("teams").select("owner_id").eq("id", teamId || "").maybeSingle()
+        const ownerId = (teamRow as any)?.owner_id
+        console.log("[v0] team owner_id:", ownerId)
+        if (ownerId) {
+          const { data: meetingsByOwner } = await supabase
+            .from("meetings")
+            .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
+            .eq("user_id", ownerId)
+            .order("date", { ascending: false })
+            .limit(100)
+          console.log("[v0] Strategy C (owner) matched:", meetingsByOwner?.length ?? 0)
+          if (meetingsByOwner && meetingsByOwner.length > 0) {
+            allMatchedMeetings = meetingsByOwner
+          }
+        }
+      }
+    }
+
     const seenIds = new Set<string>()
     const rawMeetings: any[] = []
-    for (const m of [...(meetingsByName || []) as any[], ...(meetingsByUuid || []) as any[]]) {
+    for (const m of ((allMatchedMeetings || []) as any[])) {
       if (!seenIds.has((m as any).id)) { seenIds.add((m as any).id); rawMeetings.push(m) }
     }
     rawMeetings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
