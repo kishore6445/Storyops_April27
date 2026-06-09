@@ -99,36 +99,59 @@ export async function GET(request: Request) {
     }
 
     // ── Meetings ──────────────────────────────────────────────────────────
-    // meetings.client_id stores the client NAME string (not the UUID)
+    // meetings.client_id stores the client NAME string — do NOT filter by user_id
     const clientName = (clientRow as any).name
-    const { data: meetingsData } = await supabase
+    const { data: rawMeetings } = await supabase
       .from("meetings")
-      .select("id, title, date, time, status, summary, key_decisions, action_items, attendees, notes, agenda")
+      .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
       .eq("client_id", clientName)
       .order("date", { ascending: false })
       .limit(20)
 
-    // ── Tasks linked to meetings ──────────────────────────────────────────
-    const meetingIds = (meetingsData || []).map((m: any) => m.id)
+    // Fetch attendees + action items from their sub-tables for each meeting
+    const meetingIds = (rawMeetings || []).map((m: any) => m.id)
+    let meetingAttendeesMap: Record<string, string[]> = {}
+    let meetingActionItemsMap: Record<string, string[]> = {}
     let meetingTasksMap: Record<string, any[]> = {}
+
     if (meetingIds.length > 0) {
-      const { data: meetingTasks } = await supabase
-        .from("tasks")
-        .select("id, title, status, priority, due_date, assigned_to, meeting_id, users!tasks_assigned_to_fkey(id, full_name, email)")
-        .in("meeting_id", meetingIds)
+      const [{ data: attendeeRows }, { data: actionRows }, { data: meetingTasks }] = await Promise.all([
+        supabase
+          .from("meeting_attendees")
+          .select("meeting_id, users(id, full_name)")
+          .in("meeting_id", meetingIds),
+        supabase
+          .from("meeting_action_items")
+          .select("meeting_id, description, completed")
+          .in("meeting_id", meetingIds),
+        supabase
+          .from("tasks")
+          .select("id, title, status, priority, due_date, assigned_to, meeting_id, users!tasks_assigned_to_fkey(id, full_name, email)")
+          .in("meeting_id", meetingIds),
+      ])
+
+      for (const row of attendeeRows || []) {
+        const r = row as any
+        if (!meetingAttendeesMap[r.meeting_id]) meetingAttendeesMap[r.meeting_id] = []
+        if (r.users?.full_name) meetingAttendeesMap[r.meeting_id].push(r.users.full_name)
+      }
+      for (const row of actionRows || []) {
+        const r = row as any
+        if (!meetingActionItemsMap[r.meeting_id]) meetingActionItemsMap[r.meeting_id] = []
+        if (r.description) meetingActionItemsMap[r.meeting_id].push(r.description)
+      }
       for (const t of meetingTasks || []) {
         const mt = t as any
         if (!meetingTasksMap[mt.meeting_id]) meetingTasksMap[mt.meeting_id] = []
         meetingTasksMap[mt.meeting_id].push({
-          id: mt.id,
-          title: mt.title,
-          status: mt.status,
-          priority: mt.priority,
-          due_date: mt.due_date,
-          assignee: mt.users || null,
+          id: mt.id, title: mt.title, status: mt.status,
+          priority: mt.priority, due_date: mt.due_date,
+          assignee: (mt as any).users || null,
         })
       }
     }
+
+    const meetingsData = rawMeetings
 
     // ── Deliverables from done-task files ─────────────────────────────────
     let deliverables: any[] = []
@@ -215,8 +238,8 @@ export async function GET(request: Request) {
         status: m.status || "",
         summary: m.summary || "",
         keyDecisions: Array.isArray(m.key_decisions) ? m.key_decisions : (m.key_decisions ? [m.key_decisions] : []),
-        actionItems: Array.isArray(m.action_items) ? m.action_items : (m.action_items ? [m.action_items] : []),
-        attendees: Array.isArray(m.attendees) ? m.attendees : (m.attendees ? [m.attendees] : []),
+        actionItems: meetingActionItemsMap[m.id] || [],
+        attendees: meetingAttendeesMap[m.id] || [],
         notes: m.notes || "",
         agenda: m.agenda || "",
         tasks: meetingTasksMap[m.id] || [],
