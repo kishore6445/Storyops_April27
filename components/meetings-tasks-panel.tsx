@@ -1,78 +1,105 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, ChevronDown } from "lucide-react"
+import { Plus, Loader2, X, Check, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import useSWR from "swr"
 
 interface Task {
   id: string
   title: string
-  assignee?: { id: string; full_name: string }
+  assignee?: { id: string; full_name: string; email?: string } | null
   due_date?: string
   promised_date?: string
   priority?: "high" | "medium" | "low"
-  status?: "to-do" | "in-progress" | "done"
+  status?: string
 }
 
 interface MeetingsTasksPanelProps {
-  meeting: { id: string; title?: string }
+  meeting: { id: string; title?: string; client_id?: string }
   tasks?: Task[]
   onAddTask?: () => void
 }
 
-const priorityColors = {
-  high: "bg-red-100 text-red-700",
+const fetcher = (url: string) => {
+  const token = typeof window !== "undefined" ? localStorage.getItem("sessionToken") : null
+  return fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then((r) => r.json())
+}
+
+const priorityColors: Record<string, string> = {
+  high:   "bg-red-100 text-red-700",
   medium: "bg-yellow-100 text-yellow-700",
-  low: "bg-green-100 text-green-700",
+  low:    "bg-green-100 text-green-700",
 }
 
-const statusColors = {
-  "to-do": "bg-gray-100 text-gray-700",
-  "in-progress": "bg-blue-100 text-blue-700",
-  "done": "bg-green-100 text-green-700",
-}
-
-export function MeetingsTasksPanel({ 
-  meeting, 
-  tasks = [], 
-  onAddTask 
+export function MeetingsTasksPanel({
+  meeting,
+  onAddTask,
 }: MeetingsTasksPanelProps) {
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newTask, setNewTask] = useState({ 
-    title: "", 
-    assignee: "", 
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [newTask, setNewTask] = useState({
+    title: "",
+    assigneeId: "",
     priority: "medium",
     due_date: "",
-    promised_date: ""
+    promised_date: "",
+    sprintId: "",
   })
+
+  // Fetch tasks for this meeting
+  const { data: tasksData, mutate: mutateTasks } = useSWR(
+    `/api/meetings/${meeting.id}/tasks`,
+    fetcher,
+    { revalidateOnFocus: false }
+  )
+  const tasks: Task[] = tasksData?.tasks || []
+
+  // Fetch users for assignee dropdown
+  const { data: usersData } = useSWR("/api/users", fetcher, { revalidateOnFocus: false })
+  const users: any[] = usersData?.users || []
+
+  // Fetch sprints filtered by client if available
+  const sprintsUrl = meeting.client_id
+    ? `/api/sprints?clientId=${meeting.client_id}`
+    : "/api/sprints"
+  const { data: sprintsData } = useSWR(sprintsUrl, fetcher, { revalidateOnFocus: false })
+  const sprints: any[] = sprintsData?.sprints || []
 
   const handleAddTask = async () => {
     if (!newTask.title.trim()) return
-
+    setIsSubmitting(true)
     try {
       const token = localStorage.getItem("sessionToken")
-      const response = await fetch(`/api/meetings/${meeting.id}/tasks`, {
+      const res = await fetch(`/api/meetings/${meeting.id}/tasks`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          title: newTask.title,
-          assignee: newTask.assignee || undefined,
-          priority: newTask.priority,
-          due_date: newTask.due_date || undefined,
+          title:        newTask.title,
+          assigneeId:   newTask.assigneeId   || undefined,
+          priority:     newTask.priority,
+          due_date:     newTask.due_date      || undefined,
           promised_date: newTask.promised_date || undefined,
+          sprintId:     newTask.sprintId      || undefined,
+          clientId:     meeting.client_id     || undefined,
         }),
       })
-
-      if (response.ok) {
-        setNewTask({ title: "", assignee: "", priority: "medium", due_date: "", promised_date: "" })
+      if (res.ok) {
+        setNewTask({ title: "", assigneeId: "", priority: "medium", due_date: "", promised_date: "", sprintId: "" })
         setShowAddForm(false)
+        mutateTasks()
         onAddTask?.()
+      } else {
+        const err = await res.json()
+        console.error("[v0] Task create error:", err)
       }
-    } catch (error) {
-      console.error("[v0] Error adding task:", error)
+    } catch (err) {
+      console.error("[v0] Task create exception:", err)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -80,107 +107,139 @@ export function MeetingsTasksPanel({
   const tasksProgress = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-gray-200">
+    <div className="flex flex-col h-full bg-white border-l border-gray-200 w-72 flex-shrink-0">
       {/* Header */}
-      <div className="border-b border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900">Tasks from this Meeting</h3>
-        <p className="text-sm text-gray-600 mt-1">
+      <div className="border-b border-gray-200 px-5 py-4">
+        <h3 className="text-[14px] font-semibold text-gray-900">Tasks from this Meeting</h3>
+        <p className="text-[12px] text-gray-500 mt-0.5">
           {completedCount}/{tasks.length} tasks completed
         </p>
       </div>
 
       {/* Progress Bar */}
       {tasks.length > 0 && (
-        <div className="px-6 pt-4 pb-2">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="flex-1 bg-gray-200 rounded-full h-2">
+        <div className="px-5 pt-3 pb-1">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-gray-200 rounded-full h-1.5">
               <div
-                className="bg-blue-600 h-2 rounded-full transition-all"
+                className="bg-blue-600 h-1.5 rounded-full transition-all"
                 style={{ width: `${tasksProgress}%` }}
               />
             </div>
-            <span className="text-xs text-gray-600 font-medium">{tasksProgress}%</span>
+            <span className="text-[11px] text-gray-500 font-medium w-8">{tasksProgress}%</span>
           </div>
         </div>
       )}
 
       {/* Add Task Button */}
-      <div className="px-6 py-3 border-b border-gray-200">
+      <div className="px-5 py-3 border-b border-gray-200">
         {!showAddForm ? (
           <button
             onClick={() => setShowAddForm(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add Task
           </button>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
+            {/* Title */}
             <input
               type="text"
               placeholder="Task title..."
               value={newTask.title}
               onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            
-            <input
-              type="text"
-              placeholder="Assignee name..."
-              value={newTask.assignee}
-              onChange={(e) => setNewTask({ ...newTask, assignee: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
             />
 
+            {/* Assignee dropdown */}
+            <div>
+              <label className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide block mb-1">Assign To</label>
+              <div className="relative">
+                <select
+                  value={newTask.assigneeId}
+                  onChange={(e) => setNewTask({ ...newTask, assigneeId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white pr-8"
+                >
+                  <option value="">Unassigned</option>
+                  {users.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Sprint dropdown */}
+            {sprints.length > 0 && (
+              <div>
+                <label className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide block mb-1">Sprint</label>
+                <div className="relative">
+                  <select
+                    value={newTask.sprintId}
+                    onChange={(e) => setNewTask({ ...newTask, sprintId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white pr-8"
+                  >
+                    <option value="">Backlog (no sprint)</option>
+                    {sprints.map((s: any) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+            )}
+
+            {/* Dates */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1">
-                  Due Date
-                  <span className="text-gray-400 text-xs font-normal ml-1">(internal)</span>
-                </label>
+                <label className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide block mb-1">Due Date</label>
                 <input
                   type="date"
-                  title="Internal deadline for task completion"
                   value={newTask.due_date}
                   onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1">
-                  Promised Date
-                  <span className="text-gray-400 text-xs font-normal ml-1">(client)</span>
-                </label>
+                <label className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide block mb-1">Promised</label>
                 <input
                   type="date"
-                  title="Promised delivery date to client"
                   value={newTask.promised_date}
                   onChange={(e) => setNewTask({ ...newTask, promised_date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            <select
-              value={newTask.priority}
-              onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="low">Low Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="high">High Priority</option>
-            </select>
+            {/* Priority */}
+            <div className="relative">
+              <select
+                value={newTask.priority}
+                onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white pr-8"
+              >
+                <option value="low">Low Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            </div>
 
+            {/* Actions */}
             <div className="flex gap-2">
               <button
                 onClick={handleAddTask}
-                className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors"
+                disabled={!newTask.title.trim() || isSubmitting}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-medium rounded-lg transition-colors disabled:opacity-50"
               >
-                Add Task
+                {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                Add
               </button>
               <button
                 onClick={() => setShowAddForm(false)}
-                className="flex-1 px-3 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium rounded-lg text-sm transition-colors"
+                className="flex-1 px-3 py-2 border border-gray-200 text-gray-700 hover:bg-gray-50 text-[13px] font-medium rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -190,65 +249,41 @@ export function MeetingsTasksPanel({
       </div>
 
       {/* Tasks List */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-5 py-4">
         {tasks.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-gray-500">No tasks yet</p>
-            <p className="text-xs text-gray-400 mt-1">Add your first task to track progress</p>
+          <div className="text-center py-10">
+            <p className="text-[13px] text-gray-500">No tasks yet</p>
+            <p className="text-[12px] text-gray-400 mt-1">Add tasks to track follow-ups</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {tasks.map((task) => (
               <div
                 key={task.id}
-                className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all"
+                className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-all"
               >
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="checkbox"
-                    checked={task.status === "done"}
-                    className="mt-0.5 rounded"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className={cn(
-                      "text-sm font-medium",
-                      task.status === "done" ? "line-through text-gray-500" : "text-gray-900"
-                    )}>
-                      {task.title}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Metadata */}
-                <div className="space-y-2 pl-6">
+                <p className={cn(
+                  "text-[13px] font-medium mb-1.5",
+                  task.status === "done" ? "line-through text-gray-400" : "text-gray-900"
+                )}>
+                  {task.title}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
                   {task.assignee && (
-                    <div className="text-xs text-gray-600">
-                      <span className="text-gray-500">Assigned to:</span> {task.assignee.full_name}
-                    </div>
+                    <span className="text-[11px] px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">
+                      {task.assignee.full_name}
+                    </span>
                   )}
-
-                  <div className="flex gap-2 flex-wrap">
-                    {task.due_date && (
-                      <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                        Due: {new Date(task.due_date).toLocaleDateString()}
-                      </span>
-                    )}
-                    {task.promised_date && (
-                      <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">
-                        Promised: {new Date(task.promised_date).toLocaleDateString()}
-                      </span>
-                    )}
-                    {task.priority && (
-                      <span className={cn("text-xs px-2 py-1 rounded", priorityColors[task.priority])}>
-                        {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                      </span>
-                    )}
-                    {task.status && (
-                      <span className={cn("text-xs px-2 py-1 rounded", statusColors[task.status])}>
-                        {task.status === "to-do" ? "To Do" : task.status === "in-progress" ? "In Progress" : "Done"}
-                      </span>
-                    )}
-                  </div>
+                  {task.priority && (
+                    <span className={cn("text-[11px] px-2 py-0.5 rounded-full", priorityColors[task.priority])}>
+                      {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                    </span>
+                  )}
+                  {task.due_date && (
+                    <span className="text-[11px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                      {new Date(task.due_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
