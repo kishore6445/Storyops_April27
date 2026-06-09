@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No client account found for this user" }, { status: 404 })
     }
     const clientId = (clientRow as any).id
+    const clientName = (clientRow as any).name
 
     // ── All sprints ───────────────────────────────────────────────────────
     const { data: allSprintsData } = await supabase
@@ -99,14 +100,28 @@ export async function GET(request: Request) {
     }
 
     // ── Meetings ──────────────────────────────────────────────────────────
-    // meetings.client_id stores the client NAME string — do NOT filter by user_id
-    const clientName = (clientRow as any).name
-    const { data: rawMeetings } = await supabase
-      .from("meetings")
-      .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
-      .eq("client_id", clientName)
-      .order("date", { ascending: false })
-      .limit(20)
+    // meetings.client_id may store the name string OR the UUID depending on how it was created.
+    // Fetch by both to cover all cases, then merge deduplicated.
+    const [{ data: meetingsByName }, { data: meetingsByUuid }] = await Promise.all([
+      supabase
+        .from("meetings")
+        .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
+        .eq("client_id", clientName)
+        .order("date", { ascending: false })
+        .limit(20),
+      supabase
+        .from("meetings")
+        .select("id, title, date, time, status, summary, key_decisions, notes, agenda")
+        .eq("client_id", clientId)
+        .order("date", { ascending: false })
+        .limit(20),
+    ])
+    const seenIds = new Set<string>()
+    const rawMeetings: any[] = []
+    for (const m of [...(meetingsByName || []) as any[], ...(meetingsByUuid || []) as any[]]) {
+      if (!seenIds.has((m as any).id)) { seenIds.add((m as any).id); rawMeetings.push(m) }
+    }
+    rawMeetings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     // Fetch attendees + action items from their sub-tables for each meeting
     const meetingIds = (rawMeetings || []).map((m: any) => m.id)

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch attendees and action items for each meeting
     const meetingsWithDetails = await Promise.all(
-      (meetings || []).map(async (meeting) => {
+      (meetings || []).map(async (meeting: any) => {
         const [attendeesResult, actionItemsResult] = await Promise.all([
           supabase
             .from('meeting_attendees')
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
               user_id,
               users (id, full_name, role)
             `)
-            .eq('meeting_id', meeting.id),
+            .eq('meeting_id', (meeting as any).id),
           supabase
             .from('meeting_action_items')
             .select(`
@@ -53,17 +53,17 @@ export async function GET(request: NextRequest) {
               completed,
               users (id, full_name)
             `)
-            .eq('meeting_id', meeting.id)
+            .eq('meeting_id', (meeting as any).id)
         ])
 
         return {
-          ...meeting,
-          attendees: attendeesResult.data?.map(a => ({
+          ...(meeting as any),
+          attendees: attendeesResult.data?.map((a: any) => ({
             id: a.users?.id,
             full_name: a.users?.full_name,
             role: a.users?.role
           })) || [],
-          action_items: actionItemsResult.data?.map(item => ({
+          action_items: actionItemsResult.data?.map((item: any) => ({
             id: item.id,
             description: item.description,
             owner: item.users?.full_name || 'Unassigned',
@@ -95,31 +95,40 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdminClient()
     const body = await request.json()
-    const { title, clientName, date, time, repeatWeekly, attendees, notes } = body
+    const { title, clientName, clientId: bodyClientId, date, time, repeatWeekly, attendees, notes } = body
 
-    console.log('[v0] Creating meeting with data:', { title, clientName, date, time, repeatWeekly, attendees: attendees?.length })
+    // Accept either clientName (string) or clientId (UUID).
+    // If UUID is provided, look up the client name to store as client_id.
+    let resolvedClientId: string | null = null
+    if (clientName && typeof clientName === 'string') {
+      resolvedClientId = clientName
+    } else if (bodyClientId && typeof bodyClientId === 'string') {
+      // Look up the client name from its UUID so client_id stays consistent
+      const { data: clientRow } = await supabase
+        .from('clients').select('name').eq('id', bodyClientId).single()
+      resolvedClientId = (clientRow as any)?.name || bodyClientId
+    }
 
-    // Validate clientName is provided
-    if (!clientName || typeof clientName !== 'string') {
-      console.error('[v0] Invalid or missing clientName:', clientName)
-      return NextResponse.json({ error: 'Client name is required' }, { status: 400 })
+    if (!resolvedClientId) {
+      return NextResponse.json({ error: 'Client is required' }, { status: 400 })
     }
 
     // Insert meeting
-    const { data: meeting, error: meetingError } = await supabase
+    const { data: meetingRaw, error: meetingError } = await supabase
       .from('meetings')
       .insert({
         user_id: user.id,
         title: title || null,
-        client_id: clientName,
+        client_id: resolvedClientId,
         date,
         time,
         repeat_weekly: repeatWeekly || false,
         notes: notes || '',
         status: 'scheduled'
-      })
+      } as any)
       .select()
       .single()
+    const meeting = meetingRaw as any
 
     if (meetingError || !meeting) {
       console.error('[v0] Error creating meeting:', meetingError)
@@ -129,13 +138,13 @@ export async function POST(request: NextRequest) {
     // Insert attendees if provided
     if (attendees && attendees.length > 0) {
       const attendeeRecords = attendees.map((attendeeId: string) => ({
-        meeting_id: meeting.id,
+        meeting_id: (meeting as any).id,
         user_id: attendeeId
       }))
 
       const { error: attendeesError } = await supabase
         .from('meeting_attendees')
-        .insert(attendeeRecords)
+        .insert(attendeeRecords as any)
 
       if (attendeesError) {
         console.error('[v0] Error adding attendees:', attendeesError)
@@ -148,18 +157,18 @@ export async function POST(request: NextRequest) {
           user_id,
           users (id, full_name, role)
         `)
-        .eq('meeting_id', meeting.id)
+        .eq('meeting_id', (meeting as any).id)
 
-      meeting.attendees = attendeeDetails?.map(a => ({
+      ;(meeting as any).attendees = (attendeeDetails as any[])?.map((a: any) => ({
         id: a.users?.id,
         full_name: a.users?.full_name,
         role: a.users?.role
       })) || []
     } else {
-      meeting.attendees = []
+      ;(meeting as any).attendees = []
     }
 
-    console.log('[v0] Meeting created successfully:', meeting.id)
+    console.log('[v0] Meeting created successfully:', (meeting as any).id)
     return NextResponse.json({ meeting }, { status: 201 })
   } catch (error) {
     console.error('[v0] Error creating meeting:', error)
@@ -180,7 +189,7 @@ export async function PUT(request: NextRequest) {
     const { id, clientName, date, time, repeatWeekly, attendees, notes, status } = body
 
     // Update meeting
-    const { data: meeting, error: meetingError } = await supabase
+    const { data: meetingUpdateRaw, error: meetingError } = await (supabase as any)
       .from('meetings')
       .update({
         client_id: clientName || null,
@@ -189,11 +198,12 @@ export async function PUT(request: NextRequest) {
         repeat_weekly: repeatWeekly || false,
         notes: notes || '',
         status: status || 'scheduled'
-      })
+      } as any)
       .eq('id', id)
       .eq('user_id', user.id)
       .select()
       .single()
+    const meeting = meetingUpdateRaw as any
 
     if (meetingError || !meeting) {
       console.error('[v0] Error updating meeting:', meetingError)
@@ -202,34 +212,22 @@ export async function PUT(request: NextRequest) {
 
     // Update attendees
     if (attendees) {
-      // Remove existing attendees
-      await supabase
-        .from('meeting_attendees')
-        .delete()
-        .eq('meeting_id', id)
+      await supabase.from('meeting_attendees').delete().eq('meeting_id', id)
 
-      // Insert new attendees
       if (attendees.length > 0) {
         const attendeeRecords = attendees.map((attendeeId: string) => ({
           meeting_id: id,
           user_id: attendeeId
         }))
-
-        await supabase
-          .from('meeting_attendees')
-          .insert(attendeeRecords)
+        await supabase.from('meeting_attendees').insert(attendeeRecords as any)
       }
 
-      // Fetch updated attendee details
       const { data: attendeeDetails } = await supabase
         .from('meeting_attendees')
-        .select(`
-          user_id,
-          users (id, full_name, role)
-        `)
+        .select('user_id, users (id, full_name, role)')
         .eq('meeting_id', id)
 
-      meeting.attendees = attendeeDetails?.map(a => ({
+      meeting.attendees = (attendeeDetails as any[])?.map((a: any) => ({
         id: a.users?.id,
         full_name: a.users?.full_name,
         role: a.users?.role
