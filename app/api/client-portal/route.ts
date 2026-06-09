@@ -133,7 +133,7 @@ export async function GET(request: Request) {
     // This avoids PostgREST filter issues with multi-word string values.
     const { data: allMeetingsRaw } = await supabase
       .from("meetings")
-      .select("id, title, date, time, status, summary, key_decisions, notes, agenda, client_id")
+      .select("id, title, date, time, status, summary, key_decisions, notes, client_id")
       .order("date", { ascending: false })
       .limit(500)
 
