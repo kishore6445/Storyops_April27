@@ -388,9 +388,10 @@ export function TaskKanban({
 
                               {/* Task title - click to navigate */}
                               <h4
-                                className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug cursor-pointer hover:text-blue-600 transition-colors"
+                                className={`text-sm font-semibold text-gray-900 line-clamp-2 leading-snug transition-colors ${(task as any).source_table === 'wbs2_nodes' ? 'cursor-default' : 'cursor-pointer hover:text-blue-600'}`}
                                 onClick={(e) => {
                                   e.stopPropagation()
+                                  if ((task as any).source_table === 'wbs2_nodes') return
                                   if (isSubtaskCard) {
                                     router.push(`/tasks/${(task as any).parentTaskId}`)
                                   } else {
@@ -416,6 +417,24 @@ export function TaskKanban({
                                     />
                                   )}
                                 </div>
+                              )}
+
+                              {/* Status dropdown — only for WBS2 tasks */}
+                              {(task as any).source_table === 'wbs2_nodes' && (
+                                <select
+                                  className="w-full text-xs rounded border border-gray-200 px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                                  value={task.status}
+                                  onChange={(e) => {
+                                    e.stopPropagation()
+                                    onTaskStatusChange?.(task.id, e.target.value)
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <option value="todo">Not Started</option>
+                                  <option value="in_progress">In Progress</option>
+                                  <option value="in_review">Waiting Client</option>
+                                  <option value="done">Done</option>
+                                </select>
                               )}
 
                               {/* Pomodoro Timer */}

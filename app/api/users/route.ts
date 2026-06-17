@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json()
-    const { name, email, password, role, clientName, clientDescription } = data
+    const { name, email, password, role, clientName, clientDescription, phone } = data
 
     if (!name || !email || !password || !role) {
       return NextResponse.json(
@@ -66,13 +66,6 @@ export async function POST(request: NextRequest) {
     if (password.length < 8) {
       return NextResponse.json(
         { error: "Password must be at least 8 characters" },
-        { status: 400 }
-      )
-    }
-
-    if (role === 'client' && !clientName) {
-      return NextResponse.json(
-        { error: "Client organization name is required for client users" },
         { status: 400 }
       )
     }
@@ -113,6 +106,7 @@ export async function POST(request: NextRequest) {
         full_name: name,
         role,
         is_active: true,
+        phone
       })
       .select('id, email, full_name, role, is_active, created_at')
       .single()

@@ -1,13 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Copy, Share2, Clock, Users, ChevronDown } from "lucide-react"
+import { Plus, Clock, Users, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import useSWR from "swr"
 import { MeetingsScheduleForm } from "@/components/meetings-schedule-form"
 import { MeetingsList } from "@/components/meetings-list"
 import { MeetingsDetailsPanel } from "@/components/meetings-details-panel"
-import { MeetingsMomCard } from "@/components/meetings-mom-card"
+import { MeetingsMomTab } from "@/components/meetings-mom-tab"
+import { MeetingsTasksPanel } from "@/components/meetings-tasks-panel"
+import { MeetingsTabs } from "@/components/meetings-tabs"
+import { MeetingsScheduleNextTab } from "@/components/meetings-schedule-next-tab"
+import { MeetingsKBTab } from "@/components/meetings-kb-tab"
+import { MeetingsActivityTab } from "@/components/meetings-activity-tab"
 import { BreadcrumbTrail } from "@/components/breadcrumb-trail"
 
 interface Meeting {
@@ -44,6 +49,7 @@ export default function MeetingsPage() {
 
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null)
   const [showScheduleForm, setShowScheduleForm] = useState(false)
+  const [activeTab, setActiveTab] = useState<"details" | "mom" | "schedule" | "kb" | "activity">("details")
 
   const meetings: Meeting[] = meetingsData?.meetings || []
   const selectedMeeting = meetings.find((m) => m.id === selectedMeetingId) || null
@@ -78,10 +84,10 @@ export default function MeetingsPage() {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content - Three Panel Layout */}
       <div className="flex h-[calc(100vh-120px)]">
-        {/* Left: Meeting List (30%) */}
-        <div className="w-72 border-r border-gray-200 overflow-y-auto">
+        {/* Left Panel: Meeting List (25%) */}
+        <div className="w-80 border-r border-gray-200 overflow-y-auto">
           {/* Schedule Form */}
           {showScheduleForm && (
             <div className="border-b border-gray-200 p-6 space-y-4 bg-gray-50">
@@ -144,32 +150,34 @@ export default function MeetingsPage() {
           )}
         </div>
 
-        {/* Right: Meeting Details Panel (70%) */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Center Panel: Meeting Details with Tabs (50%) */}
+        <div className="flex-1 border-r border-gray-200 overflow-hidden flex flex-col">
           {selectedMeeting ? (
-            <div className="flex gap-8 p-8 h-full">
-              {/* Meeting Details */}
-              <div className="flex-1">
-                <MeetingsDetailsPanel meeting={selectedMeeting} onUpdate={mutate} />
-              </div>
+            <>
+              {/* Tab Navigation */}
+              <MeetingsTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-              {/* MOM Card */}
-              <div className="flex-1">
-                <MeetingsMomCard 
-                  meeting={selectedMeeting} 
-                  onUpdate={mutate}
-                  onCreateActionItems={(summary, decisions) => {
-                    console.log("[v0] Creating action items from MOM:", { summary, decisions })
-                  }}
-                  onCreateTask={(title, decision) => {
-                    console.log("[v0] Creating task from action:", { title, decision })
-                  }}
-                  onAddToKnowledgeBase={(data) => {
-                    console.log("[v0] Adding to knowledge base:", data)
-                  }}
-                />
+              {/* Tab Content */}
+              <div className="flex-1 overflow-y-auto">
+                {activeTab === "details" && (
+                  <div className="p-8">
+                    <MeetingsDetailsPanel meeting={selectedMeeting} onUpdate={mutate} />
+                  </div>
+                )}
+                {activeTab === "mom" && (
+                  <MeetingsMomTab meeting={selectedMeeting} onUpdate={mutate} />
+                )}
+                {activeTab === "schedule" && (
+                  <MeetingsScheduleNextTab meeting={selectedMeeting} />
+                )}
+                {activeTab === "kb" && (
+                  <MeetingsKBTab meeting={selectedMeeting} />
+                )}
+                {activeTab === "activity" && (
+                  <MeetingsActivityTab meeting={selectedMeeting} />
+                )}
               </div>
-            </div>
+            </>
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -184,6 +192,15 @@ export default function MeetingsPage() {
             </div>
           )}
         </div>
+
+        {/* Right Panel: Tasks (25%) */}
+        {selectedMeeting && (
+          <MeetingsTasksPanel 
+            meeting={selectedMeeting}
+            tasks={[]}
+            onAddTask={() => mutate()}
+          />
+        )}
       </div>
     </div>
   )

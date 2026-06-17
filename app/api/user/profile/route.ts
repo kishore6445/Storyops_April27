@@ -47,7 +47,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 })
     }
 
-    const { display_name, personal_motto, profile_photo_url } = await request.json()
+    const { display_name, personal_motto, profile_photo_url, } = await request.json()
 
     const supabase = getSupabaseAdminClient()
     const { data: user, error } = await supabase
@@ -57,6 +57,7 @@ export async function PUT(request: Request) {
         personal_motto: personal_motto || null,
         profile_photo_url: profile_photo_url || null,
         updated_at: new Date().toISOString(),
+       
       })
       .eq("id", session.userId)
       .select()

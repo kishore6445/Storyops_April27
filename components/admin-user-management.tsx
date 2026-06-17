@@ -33,6 +33,7 @@ export function AdminUserManagement() {
     role: "user" as UserRole,
     clientName: "",
     clientDescription: "",
+    phone: ""
   })
   const [editFormData, setEditFormData] = useState({
     displayName: "",
@@ -117,16 +118,11 @@ export function AdminUserManagement() {
       return
     }
 
-    if (formData.role === "client" && !formData.clientName) {
-      alert("Client organization name is required for client users")
-      return
-    }
-
     try {
       const token = localStorage.getItem('sessionToken')
       const response = await fetch('/api/users', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
@@ -141,7 +137,7 @@ export function AdminUserManagement() {
       }
 
       await fetchUsers()
-      setFormData({ name: "", email: "", password: "", role: "user", clientName: "", clientDescription: "" })
+      setFormData({ name: "", email: "", password: "", role: "user", clientName: "", clientDescription: "", phone: "" })
       setShowAddUser(false)
       alert("User created successfully!")
     } catch (error) {
@@ -159,7 +155,7 @@ export function AdminUserManagement() {
       const token = localStorage.getItem('sessionToken')
       const response = await fetch('/api/users', {
         method: 'DELETE',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
@@ -189,7 +185,7 @@ export function AdminUserManagement() {
       const token = localStorage.getItem('sessionToken')
       const response = await fetch('/api/users', {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
@@ -226,7 +222,7 @@ export function AdminUserManagement() {
       const token = localStorage.getItem('sessionToken')
       const response = await fetch('/api/user/profile', {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
@@ -234,6 +230,7 @@ export function AdminUserManagement() {
           display_name: editFormData.displayName,
           personal_motto: editFormData.personalMotto,
           profile_photo_url: editFormData.profilePhotoUrl,
+      
         }),
       })
 
@@ -258,7 +255,7 @@ export function AdminUserManagement() {
       const token = localStorage.getItem('sessionToken')
       const response = await fetch('/api/user-phase-assignments', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
@@ -418,7 +415,7 @@ export function AdminUserManagement() {
                     {phases.map((phase) => {
                       const key = `${client.id}-${phase.id}`
                       const isAssigned = phaseAssignments[key]?.includes(phase.id)
-                      
+
                       return (
                         <label
                           key={phase.id}
@@ -497,6 +494,19 @@ export function AdminUserManagement() {
                 />
               </div>
 
+
+              <div>
+                <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Phone</label>
+                <input
+                  type="text"
+                  placeholder="Enter Phone number with country code"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-[#E5E5E7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
+                />
+              </div>
+
+
               <div>
                 <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Role</label>
                 <select
@@ -511,11 +521,16 @@ export function AdminUserManagement() {
                 </select>
               </div>
 
-              {/* Show client organization fields if role is client */}
+              {/* Show client organization fields if role is client (optional) */}
               {formData.role === "client" && (
                 <>
+                  <p className="text-xs text-[#86868B]">
+                    Organization fields are optional. You can link this user to a client organization later via Manage Clients.
+                  </p>
                   <div>
-                    <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Client Organization Name</label>
+                    <label className="text-sm font-medium text-[#1D1D1F] block mb-1">
+                      Client Organization Name <span className="text-[#86868B] font-normal">(optional)</span>
+                    </label>
                     <input
                       type="text"
                       placeholder="Enter client organization name"
@@ -526,7 +541,9 @@ export function AdminUserManagement() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Organization Description</label>
+                    <label className="text-sm font-medium text-[#1D1D1F] block mb-1">
+                      Organization Description <span className="text-[#86868B] font-normal">(optional)</span>
+                    </label>
                     <textarea
                       placeholder="Enter organization description"
                       value={formData.clientDescription}
@@ -578,65 +595,64 @@ export function AdminUserManagement() {
               </thead>
               <tbody className="divide-y divide-[#E5E5E7]">
                 {users.map((user) => (
-                <tr key={user.id} className="hover:bg-[#F5F5F7] transition-colors">
-                  <td className="px-6 py-4">
-                    <p className="font-medium text-[#1D1D1F]">{user.full_name || 'N/A'}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-[#86868B]">
-                      <Mail className="w-4 h-4" />
-                      {user.email}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRoleColor(user.role)} inline-block`}>
-                      {getRoleLabel(user.role)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => handleToggleActive(user.id)}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                        user.is_active
-                          ? "bg-[#E8F5E9] text-[#2E7D32]"
-                          : "bg-[#F5F5F7] text-[#86868B]"
-                      }`}
-                    >
-                      {user.is_active ? "Active" : "Inactive"}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-[#86868B]">{new Date(user.created_at).toLocaleDateString()}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-end gap-2">
-                      {(user.role === "user" || user.role === "manager") && (
+                  <tr key={user.id} className="hover:bg-[#F5F5F7] transition-colors">
+                    <td className="px-6 py-4">
+                      <p className="font-medium text-[#1D1D1F]">{user.full_name || 'N/A'}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-[#86868B]">
+                        <Mail className="w-4 h-4" />
+                        {user.email}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRoleColor(user.role)} inline-block`}>
+                        {getRoleLabel(user.role)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => handleToggleActive(user.id)}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${user.is_active
+                            ? "bg-[#E8F5E9] text-[#2E7D32]"
+                            : "bg-[#F5F5F7] text-[#86868B]"
+                          }`}
+                      >
+                        {user.is_active ? "Active" : "Inactive"}
+                      </button>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-[#86868B]">{new Date(user.created_at).toLocaleDateString()}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        {(user.role === "user" || user.role === "manager") && (
+                          <button
+                            onClick={() => {
+                              setShowPhaseAssignment(user.id)
+                              fetchPhaseAssignments(user.id)
+                            }}
+                            className="px-3 py-1 text-xs font-medium text-[#007AFF] hover:bg-[#E3F2FD] rounded-lg transition-colors"
+                            title="Assign phases"
+                          >
+                            <Shield className="w-4 h-4 inline mr-1" />
+                            Phases
+                          </button>
+                        )}
                         <button
-                          onClick={() => {
-                            setShowPhaseAssignment(user.id)
-                            fetchPhaseAssignments(user.id)
-                          }}
-                          className="px-3 py-1 text-xs font-medium text-[#007AFF] hover:bg-[#E3F2FD] rounded-lg transition-colors"
-                          title="Assign phases"
+                          onClick={() => handleEditUser(user)}
+                          className="p-2 text-[#86868B] hover:bg-[#F5F5F7] rounded-lg transition-colors"
+                          title="Edit user profile"
                         >
-                          <Shield className="w-4 h-4 inline mr-1" />
-                          Phases
+                          <Edit2 className="w-4 h-4" />
                         </button>
-                      )}
-                      <button
-                        onClick={() => handleEditUser(user)}
-                        className="p-2 text-[#86868B] hover:bg-[#F5F5F7] rounded-lg transition-colors"
-                        title="Edit user profile"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user.id)}
-                        className="p-2 text-[#86868B] hover:bg-[#FFEBEE] hover:text-[#D32F2F] rounded-lg transition-colors"
-                        title="Delete user"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+                        <button
+                          onClick={() => handleDeleteUser(user.id)}
+                          className="p-2 text-[#86868B] hover:bg-[#FFEBEE] hover:text-[#D32F2F] rounded-lg transition-colors"
+                          title="Delete user"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

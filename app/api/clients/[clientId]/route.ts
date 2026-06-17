@@ -17,7 +17,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Invalid session" }, { status: 401 })
     }
 
-    const { name, description, brandColor, is_active } = await request.json()
+    const { name, description, brandColor, is_active, user_id } = await request.json()
     const resolvedParams = await params
     const clientId = resolvedParams.clientId
 
@@ -28,6 +28,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (description !== undefined) updateData.description = description
     if (brandColor !== undefined) updateData.brand_color = brandColor
     if (is_active !== undefined) updateData.is_active = is_active
+    if (user_id !== undefined) updateData.user_id = user_id
 
     const { data: client, error } = await supabase
       .from('clients')

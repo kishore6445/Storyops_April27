@@ -50,20 +50,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Task not found", details: error?.message || "No task exists for this id" }, { status: 404 })
     }
 
-    // Enrich task with assignee information
-    let enrichedTask = task
+    // Enrich task with primary assignee (backward compat)
+    let enrichedTask: any = task
     if (task.assigned_to) {
       const { data: assignee } = await supabase
         .from("users")
         .select("id, full_name, email")
         .eq("id", task.assigned_to)
         .single()
-      
-      enrichedTask = {
-        ...task,
-        assignee: assignee || null
-      }
+      enrichedTask = { ...task, assignee: assignee || null }
     }
+
+    // Attach all assignees from task_assignees junction table
+    const { data: taskAssigneeRows } = await supabase
+      .from("task_assignees")
+      .select("user_id, users(id, full_name, email)")
+      .eq("task_id", taskId)
+    enrichedTask.assignees = (taskAssigneeRows || []).map((r: any) => r.users).filter(Boolean)
 
     return NextResponse.json(enrichedTask)
   } catch (error) {
@@ -91,6 +94,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const supabase = getSupabaseAdminClient()
     const resolvedParams = await params
     const taskId = resolvedParams.taskId
+    const { assigneeIds, ...restBody } = body
 
     // Get current task to compare changes
     const { data: currentTask } = await supabase
@@ -102,7 +106,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: task, error } = await supabase
       .from("tasks")
       .update({
-        ...body,
+        ...restBody,
         updated_at: new Date().toISOString()
       })
       .eq("id", taskId)
@@ -111,6 +115,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (error || !task) {
       return NextResponse.json({ error: "Failed to update task", details: error?.message }, { status: 400 })
+    }
+
+    // Sync task_assignees if assigneeIds array was provided
+    if (Array.isArray(assigneeIds)) {
+      await supabase.from("task_assignees").delete().eq("task_id", taskId)
+      if (assigneeIds.length > 0) {
+        const rows = assigneeIds.map((uid: string) => ({ task_id: taskId, user_id: uid }))
+        const { error: assigneeError } = await supabase.from("task_assignees").insert(rows)
+        if (assigneeError) {
+          console.error("[v0] task_assignees sync error (PATCH):", assigneeError.message)
+        }
+      }
     }
 
     // Log activity for significant changes
