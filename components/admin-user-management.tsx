@@ -33,6 +33,7 @@ export function AdminUserManagement() {
     role: "user" as UserRole,
     clientName: "",
     clientDescription: "",
+    phone: ""
   })
   const [editFormData, setEditFormData] = useState({
     displayName: "",
