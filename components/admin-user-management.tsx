@@ -137,7 +137,7 @@ export function AdminUserManagement() {
       }
 
       await fetchUsers()
-      setFormData({ name: "", email: "", password: "", role: "user", clientName: "", clientDescription: "" })
+      setFormData({ name: "", email: "", password: "", role: "user", clientName: "", clientDescription: "", phone: "" })
       setShowAddUser(false)
       alert("User created successfully!")
     } catch (error) {
