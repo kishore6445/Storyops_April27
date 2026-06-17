@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/overdue-reminders",
-      "schedule": "30 3 * * *"
+      "schedule": "20 12 * * *"
     }
   ]
 }
