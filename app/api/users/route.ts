@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
         full_name: name,
         role,
         is_active: true,
+        phone
       })
       .select('id, email, full_name, role, is_active, created_at')
       .single()
