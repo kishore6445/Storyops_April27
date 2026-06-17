@@ -57,6 +57,7 @@ export async function PUT(request: Request) {
         personal_motto: personal_motto || null,
         profile_photo_url: profile_photo_url || null,
         updated_at: new Date().toISOString(),
+        phone: phone || null
       })
       .eq("id", session.userId)
       .select()
