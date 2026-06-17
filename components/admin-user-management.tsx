@@ -497,7 +497,7 @@ export function AdminUserManagement() {
                 <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Phone</label>
                 <input
                   type="text"
-                  placeholder="Enter user name"
+                  placeholder="Enter Phone number with country code"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 border border-[#E5E5E7] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
