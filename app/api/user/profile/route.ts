@@ -58,7 +58,7 @@ export async function PUT(request: Request) {
         profile_photo_url: profile_photo_url || null,
         updated_at: new Date().toISOString(),
         phone: phone || null
-      })
+      } as any)
       .eq("id", session.userId)
       .select()
       .single()
