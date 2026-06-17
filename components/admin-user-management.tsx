@@ -230,7 +230,7 @@ export function AdminUserManagement() {
           display_name: editFormData.displayName,
           personal_motto: editFormData.personalMotto,
           profile_photo_url: editFormData.profilePhotoUrl,
-          phone: formData.phone
+      
         }),
       })
 
