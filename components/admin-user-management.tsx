@@ -494,7 +494,7 @@ export function AdminUserManagement() {
 
 
                 <div>
-                <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Name</label>
+                <label className="text-sm font-medium text-[#1D1D1F] block mb-1">Phone</label>
                 <input
                   type="text"
                   placeholder="Enter user name"
