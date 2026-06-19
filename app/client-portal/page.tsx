@@ -31,6 +31,8 @@ import {
   Phone,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { TaskKanban } from "@/components/task-kanban"
+import type { Task } from "@/components/my-tasks-today"
 
 const fetcher = (url: string) => {
   const token = typeof window !== "undefined" ? localStorage.getItem("sessionToken") : null
@@ -96,10 +98,26 @@ function ViewAllModal({ title, items, renderItem, onClose }: {
 export default function ClientPortalPage() {
   const [selectedSprintId, setSelectedSprintId] = useState<string>("")
   const [sprintDropdownOpen, setSprintDropdownOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<"board" | "next" | "monthly" | "timeline" | "documents" | "meetings">("board")
+  const [activeTab, setActiveTab] = useState<"board" | "next" | "monthly" | "timeline" | "documents" | "meetings" | "tasks">("board")
   const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null)
   const swrKey = selectedSprintId ? `/api/client-portal?sprintId=${selectedSprintId}` : "/api/client-portal"
   const { data, isLoading } = useSWR(swrKey, fetcher, { revalidateOnFocus: false })
+  const { data: myTasksData, mutate: mutateMyTasks } = useSWR<{ tasks: Task[] }>(
+    activeTab === "tasks" ? "/api/my-tasks" : null,
+    fetcher,
+    { revalidateOnFocus: true }
+  )
+  const myTasks: Task[] = myTasksData?.tasks || []
+
+  const handleMyTaskStatusChange = async (taskId: string, newStatus: string) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("sessionToken") : null
+    await fetch(`/api/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: newStatus }),
+    })
+    mutateMyTasks()
+  }
   const [viewAll, setViewAll] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
@@ -245,6 +263,7 @@ export default function ClientPortalPage() {
               <div className="px-2 py-1.5 text-[11px] font-semibold text-[#86868B] uppercase tracking-wider">Portal</div>
               {[
                 { id: "board", label: "Sprint Board", icon: LayoutGrid },
+                { id: "tasks", label: "My Tasks", icon: CheckCircle2 },
                 { id: "next", label: "Next Sprint", icon: Calendar },
                 { id: "monthly", label: "Monthly Review", icon: FileText },
                 { id: "timeline", label: "Timeline", icon: Radio },
@@ -378,6 +397,7 @@ export default function ClientPortalPage() {
                 <div className="flex items-center gap-4">
                   {[
                     { id: "board", label: "Sprint Board" },
+                    { id: "tasks", label: "My Tasks" },
                     { id: "next", label: "Next Sprint" },
                     { id: "meetings", label: "Meetings" },
                     { id: "monthly", label: "Monthly Review" },
@@ -854,6 +874,29 @@ export default function ClientPortalPage() {
                           )
                         })}
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "tasks" && (
+                  <div className="space-y-4">
+                    <h2 className="text-[16px] font-bold text-[#1D1D1F]">My Tasks</h2>
+                    {myTasks.length === 0 && !myTasksData ? (
+                      <div className="bg-white rounded-lg border border-[#E5E5E7] p-8 text-center">
+                        <Loader2 className="w-6 h-6 animate-spin text-[#007AFF] mx-auto mb-2" />
+                        <p className="text-[13px] text-[#86868B]">Loading tasks...</p>
+                      </div>
+                    ) : myTasks.length === 0 ? (
+                      <div className="bg-white rounded-lg border border-[#E5E5E7] p-8 text-center">
+                        <CheckCircle2 className="w-8 h-8 text-[#12B76A] mx-auto mb-2" />
+                        <p className="text-[13px] text-[#86868B]">No tasks assigned to you yet.</p>
+                      </div>
+                    ) : (
+                      <TaskKanban
+                        tasks={myTasks}
+                        onTaskStatusChange={handleMyTaskStatusChange}
+                        onTaskUpdate={() => mutateMyTasks()}
+                      />
                     )}
                   </div>
                 )}
